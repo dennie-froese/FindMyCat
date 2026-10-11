@@ -1,0 +1,1169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Find My Cat — Community-Powered Lost Pet Recovery</title>
+  <meta name="description" content="Find My Cat connects pet owners with anonymous local spotters to recover lost cats quickly and safely. Zero-friction reporting and everyday pet care passport.">
+  
+  <!-- Open Graph / Meta -->
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Find My Cat — Recover Lost Felines Fast">
+  <meta property="og:description" content="Zero-download sightings for finders, everyday pet health passport for owners.">
+  
+  <style>
+    :root {
+      --primary: #f05a3e;
+      --primary-hover: #d94b31;
+      --primary-light: #fef1ee;
+      --secondary: #0f172a;
+      --secondary-muted: #334155;
+      --surface: #ffffff;
+      --background: #fbfaf8;
+      --border: #e2e8f0;
+      --border-focus: #f05a3e;
+      --text: #0f172a;
+      --text-muted: #64748b;
+      --accent-green: #10b981;
+      --accent-green-light: #ecfdf5;
+      --radius-sm: 8px;
+      --radius-md: 14px;
+      --radius-lg: 24px;
+      --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.05);
+      --shadow-md: 0 10px 25px -5px rgba(15, 23, 42, 0.06), 0 8px 10px -6px rgba(15, 23, 42, 0.04);
+      --shadow-lg: 0 20px 40px -15px rgba(240, 90, 62, 0.12), 0 12px 24px -10px rgba(15, 23, 42, 0.08);
+      --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: var(--font);
+      background-color: var(--background);
+      color: var(--text);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 1160px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    /* Navigation */
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      background: rgba(251, 250, 248, 0.85);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid rgba(226, 232, 240, 0.8);
+      transition: all 0.2s ease;
+    }
+
+    .nav-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 76px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-weight: 700;
+      font-size: 1.25rem;
+      letter-spacing: -0.02em;
+      color: var(--secondary);
+    }
+
+    .brand-icon {
+      width: 38px;
+      height: 38px;
+      background: linear-gradient(135deg, var(--primary), #fb923c);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      box-shadow: 0 4px 12px rgba(240, 90, 62, 0.25);
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 32px;
+      font-size: 0.95rem;
+      font-weight: 500;
+      color: var(--secondary-muted);
+    }
+
+    .nav-links a:hover {
+      color: var(--primary);
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 12px 24px;
+      border-radius: var(--radius-sm);
+      font-weight: 600;
+      font-size: 0.95rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      border: none;
+      outline: none;
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: white;
+      box-shadow: 0 4px 14px rgba(240, 90, 62, 0.28);
+    }
+
+    .btn-primary:hover {
+      background: var(--primary-hover);
+      transform: translateY(-1px);
+      box-shadow: 0 6px 20px rgba(240, 90, 62, 0.35);
+    }
+
+    .btn-outline {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--secondary);
+    }
+
+    .btn-outline:hover {
+      background: var(--surface);
+      border-color: var(--secondary-muted);
+    }
+
+    /* Hero */
+    .hero {
+      padding: 80px 0 60px;
+      position: relative;
+    }
+
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+      background: var(--primary-light);
+      border: 1px solid rgba(240, 90, 62, 0.2);
+      border-radius: 999px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--primary);
+      margin-bottom: 24px;
+    }
+
+    .hero-badge-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--primary);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(1.2); }
+      100% { opacity: 1; transform: scale(1); }
+    }
+
+    .hero-grid {
+      display: grid;
+      grid-template-columns: 1.15fr 0.85fr;
+      gap: 56px;
+      align-items: center;
+    }
+
+    .hero-content h1 {
+      font-size: clamp(2.4rem, 4.2vw, 3.8rem);
+      line-height: 1.12;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      color: var(--secondary);
+      margin-bottom: 20px;
+    }
+
+    .hero-content h1 span {
+      background: linear-gradient(135deg, var(--primary) 0%, #fb923c 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .hero-subtitle {
+      font-size: 1.15rem;
+      color: var(--secondary-muted);
+      margin-bottom: 36px;
+      max-width: 540px;
+    }
+
+    /* Waitlist Box */
+    .waitlist-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 24px;
+      box-shadow: var(--shadow-md);
+      position: relative;
+    }
+
+    .waitlist-title {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--secondary);
+      margin-bottom: 6px;
+    }
+
+    .waitlist-desc {
+      font-size: 0.875rem;
+      color: var(--text-muted);
+      margin-bottom: 20px;
+    }
+
+    .waitlist-form {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .form-row {
+      display: flex;
+      gap: 12px;
+    }
+
+    .input-field {
+      width: 100%;
+      padding: 12px 16px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      font-size: 0.95rem;
+      font-family: inherit;
+      color: var(--text);
+      background: #fafaf9;
+      transition: all 0.2s;
+    }
+
+    .input-field:focus {
+      outline: none;
+      background: white;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(240, 90, 62, 0.15);
+    }
+
+    .select-field {
+      cursor: pointer;
+    }
+
+    .form-note {
+      font-size: 0.775rem;
+      color: var(--text-muted);
+      margin-top: 8px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .success-alert {
+      display: none;
+      background: var(--accent-green-light);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      color: #065f46;
+      border-radius: var(--radius-sm);
+      padding: 16px;
+      text-align: center;
+      font-size: 0.95rem;
+      animation: fadeIn 0.3s ease;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Hero Graphic / App Preview */
+    .app-preview-wrapper {
+      position: relative;
+    }
+
+    .phone-mockup {
+      background: #0f172a;
+      border-radius: 40px;
+      padding: 14px;
+      box-shadow: var(--shadow-lg), 0 0 0 1px rgba(255, 255, 255, 0.1);
+      position: relative;
+      max-width: 360px;
+      margin: 0 auto;
+    }
+
+    .phone-screen {
+      background: #ffffff;
+      border-radius: 28px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      border: 1px solid #1e293b;
+    }
+
+    .phone-notch {
+      width: 120px;
+      height: 18px;
+      background: #0f172a;
+      border-radius: 0 0 12px 12px;
+      margin: 0 auto 12px;
+    }
+
+    .preview-body {
+      padding: 0 18px 24px;
+    }
+
+    .sighting-card {
+      background: #fff5f3;
+      border: 1px solid #fed7cc;
+      border-radius: var(--radius-sm);
+      padding: 14px;
+      margin-bottom: 14px;
+    }
+
+    .sighting-status {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+
+    .badge-urgent {
+      background: var(--primary);
+      color: white;
+      font-size: 0.7rem;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 6px;
+      letter-spacing: 0.05em;
+    }
+
+    .sighting-time {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .cat-avatar-wrap {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 10px;
+    }
+
+    .cat-avatar {
+      width: 48px;
+      height: 48px;
+      background: #fed7aa;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem;
+    }
+
+    .cat-info h4 {
+      font-size: 0.95rem;
+      color: var(--secondary);
+    }
+
+    .cat-info p {
+      font-size: 0.775rem;
+      color: var(--text-muted);
+    }
+
+    .radar-box {
+      background: white;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 12px;
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .radar-icon {
+      width: 32px;
+      height: 32px;
+      background: #e0e7ff;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #4338ca;
+    }
+
+    .instant-report-btn {
+      width: 100%;
+      background: var(--secondary);
+      color: white;
+      padding: 10px;
+      border-radius: var(--radius-sm);
+      font-size: 0.825rem;
+      font-weight: 600;
+      text-align: center;
+      display: block;
+    }
+
+    .floating-pill {
+      position: absolute;
+      background: white;
+      padding: 10px 16px;
+      border-radius: 30px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.12);
+      border: 1px solid var(--border);
+      font-size: 0.8rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      z-index: 2;
+    }
+
+    .pill-1 {
+      top: 15%;
+      left: -20px;
+    }
+
+    .pill-2 {
+      bottom: 18%;
+      right: -24px;
+    }
+
+    /* Trust bar */
+    .trust-bar {
+      padding: 40px 0;
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+    }
+
+    .trust-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 24px;
+      text-align: center;
+    }
+
+    .trust-item h3 {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: var(--secondary);
+      margin-bottom: 4px;
+    }
+
+    .trust-item p {
+      font-size: 0.875rem;
+      color: var(--text-muted);
+    }
+
+    /* Feature Pillars */
+    .section {
+      padding: 96px 0;
+    }
+
+    .section-header {
+      text-align: center;
+      max-width: 680px;
+      margin: 0 auto 64px;
+    }
+
+    .section-tag {
+      font-size: 0.85rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--primary);
+      margin-bottom: 12px;
+    }
+
+    .section-header h2 {
+      font-size: clamp(2rem, 3vw, 2.6rem);
+      letter-spacing: -0.02em;
+      color: var(--secondary);
+      margin-bottom: 16px;
+      font-weight: 800;
+    }
+
+    .section-header p {
+      font-size: 1.05rem;
+      color: var(--secondary-muted);
+    }
+
+    .pillars-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 32px;
+    }
+
+    .pillar-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 36px 28px;
+      transition: all 0.25s ease;
+      position: relative;
+    }
+
+    .pillar-card:hover {
+      transform: translateY(-4px);
+      box-shadow: var(--shadow-md);
+      border-color: rgba(240, 90, 62, 0.4);
+    }
+
+    .pillar-icon-box {
+      width: 52px;
+      height: 52px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 22px;
+      font-size: 1.5rem;
+    }
+
+    .icon-box-1 { background: #fee2e2; color: #dc2626; }
+    .icon-box-2 { background: #e0f2fe; color: #0284c7; }
+    .icon-box-3 { background: #ecfdf5; color: #059669; }
+
+    .pillar-card h3 {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--secondary);
+      margin-bottom: 12px;
+    }
+
+    .pillar-card p {
+      font-size: 0.925rem;
+      color: var(--secondary-muted);
+      line-height: 1.6;
+    }
+
+    /* Comparison / How it Works */
+    .flow-section {
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .flow-steps {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 24px;
+      position: relative;
+    }
+
+    .flow-step {
+      background: var(--background);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 24px;
+      position: relative;
+    }
+
+    .step-number {
+      width: 32px;
+      height: 32px;
+      background: var(--secondary);
+      color: white;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.85rem;
+      font-weight: 700;
+      margin-bottom: 16px;
+    }
+
+    .flow-step h4 {
+      font-size: 1.05rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+      color: var(--secondary);
+    }
+
+    .flow-step p {
+      font-size: 0.875rem;
+      color: var(--text-muted);
+    }
+
+    /* Pre-Launch CTA Banner */
+    .cta-banner {
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+      border-radius: var(--radius-lg);
+      padding: 64px 40px;
+      color: white;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+      margin-bottom: 80px;
+      box-shadow: var(--shadow-lg);
+    }
+
+    .cta-banner h2 {
+      font-size: clamp(1.8rem, 3.5vw, 2.6rem);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      margin-bottom: 16px;
+    }
+
+    .cta-banner p {
+      font-size: 1.1rem;
+      color: #94a3b8;
+      max-width: 580px;
+      margin: 0 auto 32px;
+    }
+
+    .cta-banner-form {
+      display: flex;
+      max-width: 480px;
+      margin: 0 auto;
+      gap: 10px;
+    }
+
+    .cta-banner-form input {
+      flex: 1;
+      padding: 14px 18px;
+      border-radius: var(--radius-sm);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      background: rgba(255, 255, 255, 0.08);
+      color: white;
+      font-size: 0.95rem;
+    }
+
+    .cta-banner-form input::placeholder {
+      color: #94a3b8;
+    }
+
+    .cta-banner-form input:focus {
+      outline: none;
+      border-color: var(--primary);
+      background: rgba(255, 255, 255, 0.15);
+    }
+
+    /* Footer */
+    footer {
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      padding: 60px 0 40px;
+      font-size: 0.9rem;
+      color: var(--text-muted);
+    }
+
+    .footer-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 48px;
+      flex-wrap: wrap;
+      gap: 32px;
+    }
+
+    .footer-desc {
+      max-width: 340px;
+      margin-top: 12px;
+      line-height: 1.5;
+    }
+
+    .footer-links-group {
+      display: flex;
+      gap: 48px;
+    }
+
+    .footer-col h5 {
+      color: var(--secondary);
+      font-weight: 700;
+      margin-bottom: 16px;
+      font-size: 0.95rem;
+    }
+
+    .footer-col ul {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .footer-col a:hover {
+      color: var(--primary);
+    }
+
+    .footer-bottom {
+      border-top: 1px solid var(--border);
+      padding-top: 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 16px;
+      font-size: 0.825rem;
+    }
+
+    .commercial-notice {
+      display: inline-block;
+      padding: 4px 10px;
+      background: #f1f5f9;
+      border-radius: 6px;
+      font-size: 0.775rem;
+      color: var(--secondary-muted);
+    }
+
+    /* Responsive */
+    @media (max-width: 960px) {
+      .hero-grid {
+        grid-template-columns: 1fr;
+        gap: 48px;
+      }
+      .pillars-grid {
+        grid-template-columns: 1fr;
+      }
+      .flow-steps {
+        grid-template-columns: 1fr 1fr;
+      }
+      .trust-grid {
+        grid-template-columns: 1fr;
+        gap: 16px;
+      }
+    }
+
+    @media (max-width: 640px) {
+      .nav-links {
+        display: none;
+      }
+      .form-row {
+        flex-direction: column;
+      }
+      .cta-banner-form {
+        flex-direction: column;
+      }
+      .flow-steps {
+        grid-template-columns: 1fr;
+      }
+      .pill-1, .pill-2 {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Navigation -->
+  <header>
+    <div class="container nav-inner">
+      <a href="#" class="brand">
+        <div class="brand-icon">
+          <!-- Cat paw / face svg -->
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 5c.67 0 1.35.09 2 .26 1.78-2 5.03-2.84 6.42-2.26 1.4.58 1.42 3.82.04 6.07C21.4 10.45 22 12.16 22 14c0 4.42-4.48 8-10 8s-10-3.58-10-8c0-1.84.6-3.55 1.54-4.93C2.16 6.82 2.18 3.58 3.58 3c1.39-.58 4.64.26 6.42 2.26.65-.17 1.33-.26 2-.26z"/>
+            <circle cx="9" cy="13" r="1"/>
+            <circle cx="15" cy="13" r="1"/>
+          </svg>
+        </div>
+        <span>Find My Cat</span>
+      </a>
+
+      <nav class="nav-links">
+        <a href="#how-it-works">How It Works</a>
+        <a href="#features">Features</a>
+        <a href="#pet-passport">Pet Passport</a>
+        <a href="#faq">FAQ</a>
+      </nav>
+
+      <a href="#waitlist" class="btn btn-primary">Join UK Beta</a>
+    </div>
+  </header>
+
+  <!-- Hero Section -->
+  <main>
+    <section class="hero">
+      <div class="container hero-grid">
+        <div class="hero-content">
+          <div class="hero-badge">
+            <span class="hero-badge-dot"></span>
+            UK Pilot Launching Soon • London & Urban Boroughs
+          </div>
+          <h1>Every second counts when your cat <span>goes missing.</span></h1>
+          <p class="hero-subtitle">
+            Indoor cats hide within 500 meters in frozen silence. Find My Cat turns local neighbors into instant spotters with zero app downloads or sign-ups required.
+          </p>
+
+          <!-- Waitlist Box -->
+          <div id="waitlist" class="waitlist-card">
+            <div id="form-content">
+              <h2 class="waitlist-title">Be first in line for the private beta</h2>
+              <p class="waitlist-desc">Lock in 1 year of complimentary "Cat Guardian" passport access when we launch in your area.</p>
+
+              <form id="beta-form" class="waitlist-form">
+                <div class="form-row">
+                  <input 
+                    type="email" 
+                    id="email" 
+                    name="email" 
+                    class="input-field" 
+                    placeholder="Enter your email address" 
+                    required 
+                    autocomplete="email"
+                  >
+                  <input 
+                    type="text" 
+                    id="postcode" 
+                    name="postcode" 
+                    class="input-field" 
+                    placeholder="Postcode / Town (e.g. SW4 or Bristol)" 
+                    style="max-width: 190px;"
+                    required
+                  >
+                </div>
+
+                <div class="form-row">
+                  <select id="role" name="role" class="input-field select-field" required>
+                    <option value="" disabled selected>Select your profile...</option>
+                    <option value="owner">Cat Parent (Preventative safety & health)</option>
+                    <option value="spotter">Neighborhood Lookout / Animal Lover</option>
+                    <option value="shelter">Rescue Charity / Vet / Shelter Volunteer</option>
+                  </select>
+
+                  <button type="submit" class="btn btn-primary" style="white-space: nowrap;">
+                    Get Early Access
+                  </button>
+                </div>
+
+                <p class="form-note">
+                  🔒 We never share your data. Safe 200m dual-zone privacy protection guaranteed.
+                </p>
+              </form>
+            </div>
+
+            <!-- Interactive confirmation state -->
+            <div id="form-success" class="success-alert">
+              <strong>🎉 You're on the priority waitlist!</strong><br>
+              Thank you for supporting community feline safety. We'll send an invite to your inbox the moment our pilot rollout begins.
+            </div>
+          </div>
+        </div>
+
+        <!-- Hero Device Preview -->
+        <div class="app-preview-wrapper">
+          <div class="floating-pill pill-1">
+            <span>⚡️ Zero-install App Clip report</span>
+          </div>
+          <div class="floating-pill pill-2">
+            <span>🛡️ 200m Privacy Buffer Zone</span>
+          </div>
+
+          <div class="phone-mockup">
+            <div class="phone-screen">
+              <div class="phone-notch"></div>
+              
+              <div class="preview-body">
+                <div class="sighting-card">
+                  <div class="sighting-status">
+                    <span class="badge-urgent">URGENT SIGHTING</span>
+                    <span class="sighting-time">14 mins ago</span>
+                  </div>
+                  <div class="cat-avatar-wrap">
+                    <div class="cat-avatar">🐱</div>
+                    <div class="cat-info">
+                      <h4>Milo (Ginger Tabby)</h4>
+                      <p>Reported near Victoria Park</p>
+                    </div>
+                  </div>
+                  <span class="instant-report-btn">Tap to submit photo & location</span>
+                </div>
+
+                <div class="radar-box">
+                  <div class="radar-icon">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <polygon points="12 2 19 21 12 17 5 21 12 2"></polygon>
+                    </svg>
+                  </div>
+                  <div>
+                    <strong style="font-size: 0.8rem; display: block; color: var(--secondary);">Community Radar Active</strong>
+                    <span style="font-size: 0.725rem; color: var(--text-muted);">8 spotters notified in 500m radius</span>
+                  </div>
+                </div>
+
+                <div style="background: #f8fafc; border-radius: 10px; padding: 12px; border: 1px dashed #cbd5e1; text-align: center;">
+                  <span style="font-size: 0.75rem; color: var(--secondary-muted); font-weight: 600;">📋 Pet Passport: Chip #9851410023</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Trust indicators -->
+    <section class="trust-bar">
+      <div class="container trust-grid">
+        <div class="trust-item">
+          <h3>No App Download Needed</h3>
+          <p>Finders snap a photo via dynamic QR poster or App Clip in seconds.</p>
+        </div>
+        <div class="trust-item">
+          <h3>200m Privacy Shield</h3>
+          <p>Randomized safety buffers ensure your home address is never exposed.</p>
+        </div>
+        <div class="trust-item">
+          <h3>Vet & Shelter Connected</h3>
+          <p>Cross-references reports with intake records from rescue partners.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- How It Works Flow -->
+    <section id="how-it-works" class="section flow-section">
+      <div class="container">
+        <div class="section-header">
+          <div class="section-tag">Frictionless Recovery</div>
+          <h2>How Find My Cat Works</h2>
+          <p>Traditional posters have low reach and high friction. We remove every obstacle between a spotted cat and a happy reunion.</p>
+        </div>
+
+        <div class="flow-steps">
+          <div class="flow-step">
+            <div class="step-number">1</div>
+            <h4>Report Lost in 1 Tap</h4>
+            <p>Generate high-visibility smart posters with dynamic QR codes and broadcast to nearby community spotters instantly.</p>
+          </div>
+          <div class="flow-step">
+            <div class="step-number">2</div>
+            <h4>Zero-Friction Sighting</h4>
+            <p>Passersby scan the poster or open an instant camera. Photo, EXIF time, and GPS coordinates log without creating an account.</p>
+          </div>
+          <div class="flow-step">
+            <div class="step-number">3</div>
+            <h4>Precision Radar</h4>
+            <p>Owners receive real-time clustered sightings on an interactive map, narrowing the search from miles to specific garden alleys.</p>
+          </div>
+          <div class="flow-step">
+            <div class="step-number">4</div>
+            <h4>Safe Reunion</h4>
+            <p>Secure in-app communication lets spotters verify the cat's safety without giving out private personal phone numbers.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Features Pillars -->
+    <section id="features" class="section">
+      <div class="container">
+        <div class="section-header">
+          <div class="section-tag">Designed for Peace of Mind</div>
+          <h2>Built for the 99% of Days Your Cat is Safe</h2>
+          <p>Pet recovery apps suffer from high churn because panics are episodic. Find My Cat offers everyday neighborhood utility.</p>
+        </div>
+
+        <div class="pillars-grid">
+          <div class="pillar-card">
+            <div class="pillar-icon-box icon-box-1">🩺</div>
+            <h3>The Digital Pet Passport</h3>
+            <p>Store microchip numbers, vaccination histories, allergy alerts, and vet clinic details in a secure cloud vault with automated reminders.</p>
+          </div>
+
+          <div class="pillar-card">
+            <div class="pillar-icon-box icon-box-2">🏷️</div>
+            <h3>Smart NFC Collar Tags</h3>
+            <p>Waterproof collar tags equipped with dynamic QR and NFC chips. Anyone tapping with an iPhone or Android gets instant recovery instructions.</p>
+          </div>
+
+          <div class="pillar-card">
+            <div class="pillar-icon-box icon-box-3">📢</div>
+            <h3>Hyper-Local Emergency Boost</h3>
+            <p>Optional sponsored geo-targeted social broadcast (Instagram/Facebook) and push notification burst to lookouts within a 2-mile radius.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Bottom CTA Banner -->
+    <section class="container">
+      <div class="cta-banner">
+        <h2>Help us protect the UK’s 12 million cats</h2>
+        <p>Join pet parents, vet nurses, and rescue volunteers creating safer neighborhoods across the UK.</p>
+        
+        <form id="secondary-form" class="cta-banner-form">
+          <input type="email" placeholder="Enter your email" required>
+          <button type="submit" class="btn btn-primary" style="background: var(--primary);">Join Beta Waitlist</button>
+        </form>
+      </div>
+    </section>
+
+    <!-- FAQ Section -->
+    <section id="faq" class="section" style="background: var(--surface); border-top: 1px solid var(--border);">
+      <div class="container" style="max-width: 780px;">
+        <div class="section-header" style="margin-bottom: 40px;">
+          <div class="section-tag">Questions</div>
+          <h2>Frequently Asked Questions</h2>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 20px;">
+          <div style="border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 20px;">
+            <h4 style="color: var(--secondary); margin-bottom: 8px;">Why don't finders need to register an account?</h4>
+            <p style="color: var(--text-muted); font-size: 0.95rem;">
+              When a neighbor spots a cat under a bush on a rainy evening, requiring them to download a 60MB app and register an account guarantees they will abandon the report. Our App Clip and mobile web flows allow zero-install, 10-second sighting submissions.
+            </p>
+          </div>
+
+          <div style="border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 20px;">
+            <h4 style="color: var(--secondary); margin-bottom: 8px;">How does the 200-meter privacy shield work?</h4>
+            <p style="color: var(--text-muted); font-size: 0.95rem;">
+              To prevent targeted pet theft or unwanted visitors, public alerts show a randomized 200m buffer circle rather than pinpointing your residential house or flat number.
+            </p>
+          </div>
+
+          <div style="border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 20px;">
+            <h4 style="color: var(--secondary); margin-bottom: 8px;">When does the UK beta launch?</h4>
+            <p style="color: var(--text-muted); font-size: 0.95rem;">
+              Pilot testing begins in selected London boroughs and dense regional centers in early 2027. Early waitlist subscribers will receive priority invitations and full access to the Guardian Pet Passport features.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Footer -->
+  <footer>
+    <div class="container">
+      <div class="footer-top">
+        <div>
+          <div class="brand">
+            <div class="brand-icon" style="width: 32px; height: 32px;">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                <path d="M12 5c.67 0 1.35.09 2 .26 1.78-2 5.03-2.84 6.42-2.26 1.4.58 1.42 3.82.04 6.07C21.4 10.45 22 12.16 22 14c0 4.42-4.48 8-10 8s-10-3.58-10-8c0-1.84.6-3.55 1.54-4.93C2.16 6.82 2.18 3.58 3.58 3c1.39-.58 4.64.26 6.42 2.26.65-.17 1.33-.26 2-.26z"/>
+              </svg>
+            </div>
+            <span>Find My Cat</span>
+          </div>
+          <p class="footer-desc">
+            The community-powered lost feline recovery platform and digital pet passport. Designed and operated in the United Kingdom.
+          </p>
+        </div>
+
+        <div class="footer-links-group">
+          <div class="footer-col">
+            <h5>Product</h5>
+            <ul>
+              <li><a href="#how-it-works">How It Works</a></li>
+              <li><a href="#features">Smart Posters</a></li>
+              <li><a href="#features">NFC Collar Tags</a></li>
+              <li><a href="#features">Pet Passport</a></li>
+            </ul>
+          </div>
+          <div class="footer-col">
+            <h5>Platform</h5>
+            <ul>
+              <li><a href="#waitlist">Beta Waitlist</a></li>
+              <li><a href="#faq">Charity & Vet Partners</a></li>
+              <li><a href="mailto:hello@findmycat.app">Contact Us</a></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="footer-bottom">
+        <div>
+          &copy; 2026 Find My Cat. All rights reserved.
+          <span class="commercial-notice" style="margin-left: 12px;">Pre-Launch Commercial Operations • UK</span>
+        </div>
+        <div style="display: flex; gap: 16px;">
+          <a href="#">Privacy Policy</a>
+          <a href="#">Terms of Service</a>
+          <a href="mailto:contact@findmycat.app">Support</a>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    // Paste your deployed Google Apps Script Web App URL between the quotes below:
+    const GOOGLE_SHEET_URL = '';
+
+    const form = document.getElementById('beta-form');
+    const formContent = document.getElementById('form-content');
+    const formSuccess = document.getElementById('form-success');
+    const secondaryForm = document.getElementById('secondary-form');
+    const submitBtn = form?.querySelector('button[type="submit"]');
+
+    async function handleSubmission(e) {
+      e.preventDefault();
+
+      const email = document.getElementById('email')?.value.trim() || '';
+      const postcode = document.getElementById('postcode')?.value.trim() || '';
+      const role = document.getElementById('role')?.value || '';
+
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerText = 'Securing Spot...';
+      }
+
+      // Always save locally in localStorage as a backup
+      try {
+        const existing = JSON.parse(localStorage.getItem('fmc_waitlist') || '[]');
+        existing.push({ email, postcode, role, timestamp: new Date().toISOString() });
+        localStorage.setItem('fmc_waitlist', JSON.stringify(existing));
+      } catch (err) {}
+
+      // If a Google Sheets Web App URL is provided, send the submission
+      if (GOOGLE_SHEET_URL && GOOGLE_SHEET_URL.startsWith('http')) {
+        try {
+          const formData = new FormData();
+          formData.append('email', email);
+          formData.append('postcode', postcode);
+          formData.append('role', role);
+          formData.append('timestamp', new Date().toISOString());
+
+          await fetch(GOOGLE_SHEET_URL, {
+            method: 'POST',
+            mode: 'no-cors',
+            body: formData
+          });
+        } catch (error) {
+          console.warn('Google Sheets sync warning:', error);
+        }
+      }
+
+      // Smooth transition to confirmation state
+      if (formContent && formSuccess) {
+        formContent.style.display = 'none';
+        formSuccess.style.display = 'block';
+      }
+    }
+
+    if (form) {
+      form.addEventListener('submit', handleSubmission);
+    }
+
+    if (secondaryForm) {
+      secondaryForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        window.location.href = '#waitlist';
+        document.getElementById('email')?.focus();
+      });
+    }
+  </script>
+</body>
+</html>
