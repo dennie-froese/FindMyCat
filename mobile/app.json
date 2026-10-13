@@ -1,0 +1,42 @@
+{
+  "expo": {
+    "name": "Find My Cat",
+    "slug": "find-my-cat",
+    "scheme": "findmycat",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "primaryColor": "#f05a3e",
+    "ios": {
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSCameraUsageDescription": "Find My Cat needs camera access to take quick photos of sighted lost cats.",
+        "NSPhotoLibraryUsageDescription": "Find My Cat needs photo library access to upload photos and read geotag location metadata.",
+        "NSLocationWhenInUseUsageDescription": "Find My Cat needs location access to plot approximate sighting locations on the neighborhood map."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#fbfaf8",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION"
+      ],
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-sharing"
+    ]
+  }
+}

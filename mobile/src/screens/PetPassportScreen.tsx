@@ -1,0 +1,565 @@
+import React, { useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  Image,
+  TouchableOpacity,
+  Alert,
+  Switch,
+} from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { Colors } from '../theme/colors';
+import { CatProfile } from '../types';
+
+interface PetPassportScreenProps {
+  cat: CatProfile;
+  onUpdateCat: (updated: CatProfile) => void;
+  onGeneratePoster: () => void;
+}
+
+export const PetPassportScreen: React.FC<PetPassportScreenProps> = ({
+  cat,
+  onUpdateCat,
+  onGeneratePoster,
+}) => {
+  const [copiedChip, setCopiedChip] = useState(false);
+
+  const isMissing = cat.status === 'missing';
+
+  const handleToggleMissingStatus = (willBeMissing: boolean) => {
+    if (willBeMissing) {
+      Alert.alert(
+        '🚨 Trigger Missing Mode?',
+        `This will flag ${cat.name} as missing on the neighbourhood radar and generate an emergency print-ready lost poster.`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Activate Alert',
+            style: 'destructive',
+            onPress: () => {
+              const updated = {
+                ...cat,
+                status: 'missing' as const,
+                missingSince: new Date().toISOString(),
+              };
+              onUpdateCat(updated);
+            },
+          },
+        ]
+      );
+    } else {
+      Alert.alert(
+        '🎉 Cat Found / Safe!',
+        `Mark ${cat.name} as safely reunited? This will stand down local search alerts.`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Mark Safe',
+            onPress: () => {
+              const updated = {
+                ...cat,
+                status: 'safe' as const,
+                missingSince: undefined,
+              };
+              onUpdateCat(updated);
+            },
+          },
+        ]
+      );
+    }
+  };
+
+  const handleCopyChip = () => {
+    setCopiedChip(true);
+    setTimeout(() => setCopiedChip(false), 2000);
+    Alert.alert('Microchip ID Copied', `${cat.microchipNumber} copied to clipboard.`);
+  };
+
+  return (
+    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      {/* Emergency Status Banner */}
+      <View
+        style={[
+          styles.emergencyCard,
+          isMissing ? styles.emergencyCardActive : styles.emergencyCardSafe,
+        ]}
+      >
+        <View style={styles.emergencyRow}>
+          <View style={{ flex: 1 }}>
+            <Text
+              style={[
+                styles.emergencyTitle,
+                isMissing ? styles.emergencyTitleActive : styles.emergencyTitleSafe,
+              ]}
+            >
+              {isMissing ? '🚨 EMERGENCY: CAT REPORTED MISSING' : '🛡️ PET STATUS: SAFE & PROTECTED'}
+            </Text>
+            <Text
+              style={[
+                styles.emergencySubtitle,
+                isMissing ? styles.emergencySubtitleActive : styles.emergencySubtitleSafe,
+              ]}
+            >
+              {isMissing
+                ? `Local radar alert active within 2-mile radius.`
+                : 'Toggle only if cat fails to return home.'}
+            </Text>
+          </View>
+          <Switch
+            value={isMissing}
+            onValueChange={handleToggleMissingStatus}
+            trackColor={{ false: '#cbd5e1', true: Colors.danger }}
+          />
+        </View>
+
+        {isMissing && (
+          <TouchableOpacity style={styles.posterActionBtn} onPress={onGeneratePoster}>
+            <Ionicons name="print" size={18} color="#ffffff" />
+            <Text style={styles.posterActionBtnText}>Generate Print-Ready Lost Poster (PDF)</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {/* Hero Cat Passport Card */}
+      <View style={styles.passportCard}>
+        <View style={styles.heroRow}>
+          <Image source={{ uri: cat.photoUrl }} style={styles.petPhoto} />
+          <View style={styles.heroInfo}>
+            <View style={styles.nameRow}>
+              <Text style={styles.petName}>{cat.name}</Text>
+              <View
+                style={[
+                  styles.statusBadge,
+                  isMissing ? styles.statusBadgeMissing : styles.statusBadgeSafe,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.statusBadgeText,
+                    isMissing ? styles.statusBadgeTextMissing : styles.statusBadgeTextSafe,
+                  ]}
+                >
+                  {isMissing ? 'MISSING' : 'SAFE'}
+                </Text>
+              </View>
+            </View>
+            <Text style={styles.breedText}>{cat.breed}</Text>
+            <Text style={styles.metaText}>
+              {cat.gender} • {cat.ageYears} yrs old • {cat.isNeutered ? 'Neutered ✓' : 'Unneutered'}
+            </Text>
+            <Text style={styles.colorText}>🎨 {cat.coatColour || cat.coatColor}</Text>
+          </View>
+        </View>
+
+        <View style={styles.divider} />
+
+        {/* Distinctive Features */}
+        <View style={styles.infoSection}>
+          <Text style={styles.sectionHeading}>Distinctive Physical Identifiers</Text>
+          <Text style={styles.featuresText}>"{cat.distinctiveFeatures}"</Text>
+        </View>
+      </View>
+
+      {/* Microchip Vault Card */}
+      <View style={styles.card}>
+        <View style={styles.cardHeaderRow}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <Ionicons name="card-outline" size={20} color={Colors.primary} />
+            <Text style={styles.cardHeaderTitle}>Digital Microchip Vault</Text>
+          </View>
+          <View style={styles.verifiedPill}>
+            <Text style={styles.verifiedPillText}>ISO 11784 Verified</Text>
+          </View>
+        </View>
+
+        <View style={styles.chipDisplay}>
+          <Text style={styles.chipNumber}>{cat.microchipNumber}</Text>
+          <TouchableOpacity style={styles.chipCopyBtn} onPress={handleCopyChip}>
+            <Text style={styles.chipCopyText}>
+              {copiedChip ? '✓ Copied' : 'Copy Chip ID'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+        <Text style={styles.chipSubtext}>
+          Registered with UK Petlog & Identibase. Show to any vet practice or rescue centre scanner.
+        </Text>
+      </View>
+
+      {/* Vaccination Vault */}
+      <View style={styles.card}>
+        <View style={styles.cardHeaderRow}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <Ionicons name="shield-checkmark" size={20} color={Colors.success} />
+            <Text style={styles.cardHeaderTitle}>Vaccination & Medical Vault</Text>
+          </View>
+          <TouchableOpacity
+            onPress={() =>
+              Alert.alert(
+                'Vet Reminder Set',
+                'Automated reminders are active for 7 days and 1 day prior to next booster date.'
+              )
+            }
+          >
+            <Text style={styles.reminderLink}>🔔 Reminders On</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={{ gap: 10, marginTop: 12 }}>
+          {cat.vaccinations.map((vac) => (
+            <View key={vac.id} style={styles.vacItem}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.vacName}>{vac.name}</Text>
+                <Text style={styles.vacClinic}>Practice: {vac.vetClinic}</Text>
+                <Text style={styles.vacDate}>Next Booster: {vac.nextDueDate}</Text>
+              </View>
+              <View
+                style={[
+                  styles.vacBadge,
+                  vac.isUpToDate ? styles.vacBadgeGreen : styles.vacBadgeAmber,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.vacBadgeText,
+                    vac.isUpToDate ? styles.vacBadgeTextGreen : styles.vacBadgeTextAmber,
+                  ]}
+                >
+                  {vac.isUpToDate ? 'UP TO DATE' : 'BOOSTER DUE'}
+                </Text>
+              </View>
+            </View>
+          ))}
+        </View>
+      </View>
+
+      {/* Emergency Vet Quick Action */}
+      <View style={[styles.card, { marginBottom: 30 }]}>
+        <View style={styles.cardHeaderRow}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <Ionicons name="call" size={18} color={Colors.primary} />
+            <Text style={styles.cardHeaderTitle}>Emergency Vet Contact</Text>
+          </View>
+        </View>
+        <Text style={{ fontSize: 13, color: Colors.textSecondary, marginTop: 4 }}>
+          {cat.homeAddressApprox || 'Registered Veterinary Practice'}
+        </Text>
+        <TouchableOpacity
+          style={styles.callVetBtn}
+          onPress={() =>
+            Alert.alert('Emergency Contact', `Dialling registered emergency number: ${cat.emergencyPhone}`)
+          }
+        >
+          <Ionicons name="call" size={16} color={Colors.primary} />
+          <Text style={styles.callVetText}>Call Registered Contact ({cat.emergencyPhone})</Text>
+        </TouchableOpacity>
+      </View>
+    </ScrollView>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
+  content: {
+    padding: 16,
+    gap: 16,
+  },
+  emergencyCard: {
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1.5,
+  },
+  emergencyCardSafe: {
+    backgroundColor: '#f0fdf4',
+    borderColor: '#86efac',
+  },
+  emergencyCardActive: {
+    backgroundColor: '#fef2f2',
+    borderColor: '#fca5a5',
+  },
+  emergencyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  emergencyTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  emergencyTitleSafe: {
+    color: '#15803d',
+  },
+  emergencyTitleActive: {
+    color: Colors.danger,
+  },
+  emergencySubtitle: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  emergencySubtitleSafe: {
+    color: '#166534',
+  },
+  emergencySubtitleActive: {
+    color: '#b91c1c',
+  },
+  posterActionBtn: {
+    marginTop: 12,
+    backgroundColor: Colors.danger,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderRadius: 10,
+    gap: 8,
+  },
+  posterActionBtnIcon: {
+    fontSize: 18,
+  },
+  posterActionBtnText: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '800',
+    letterSpacing: 0.2,
+  },
+  passportCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: 20,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    shadowColor: Colors.textPrimary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  heroRow: {
+    flexDirection: 'row',
+    gap: 16,
+  },
+  petPhoto: {
+    width: 100,
+    height: 100,
+    borderRadius: 16,
+    backgroundColor: '#e2e8f0',
+  },
+  heroInfo: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  petName: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: Colors.textPrimary,
+  },
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  statusBadgeText: {
+    letterSpacing: 0.5,
+  },
+  statusBadgeSafe: {
+    backgroundColor: Colors.successLight,
+  },
+  statusBadgeTextSafe: {
+    color: Colors.success,
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  statusBadgeMissing: {
+    backgroundColor: Colors.dangerLight,
+  },
+  statusBadgeTextMissing: {
+    color: Colors.danger,
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  breedText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.textSecondary,
+    marginTop: 2,
+  },
+  metaText: {
+    fontSize: 12,
+    color: Colors.textMuted,
+    marginTop: 3,
+  },
+  colorText: {
+    fontSize: 12,
+    color: Colors.primary,
+    fontWeight: '600',
+    marginTop: 3,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: Colors.border,
+    marginVertical: 14,
+  },
+  infoSection: {},
+  sectionHeading: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: Colors.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  featuresText: {
+    fontSize: 13,
+    color: Colors.textPrimary,
+    fontStyle: 'italic',
+    marginTop: 4,
+    lineHeight: 18,
+  },
+  card: {
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  cardHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  cardHeaderTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: Colors.textPrimary,
+  },
+  verifiedPill: {
+    backgroundColor: '#ecfdf5',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  verifiedPillText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#059669',
+  },
+  chipDisplay: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginTop: 12,
+  },
+  chipNumber: {
+    fontSize: 16,
+    fontWeight: '800',
+    letterSpacing: 1,
+    color: Colors.textPrimary,
+  },
+  chipCopyBtn: {
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 6,
+  },
+  chipCopyText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: Colors.primary,
+  },
+  chipSubtext: {
+    fontSize: 11,
+    color: Colors.textMuted,
+    marginTop: 8,
+    lineHeight: 15,
+  },
+  reminderLink: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.primary,
+  },
+  vacItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f8fafc',
+    padding: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  vacName: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: Colors.textPrimary,
+  },
+  vacClinic: {
+    fontSize: 11,
+    color: Colors.textSecondary,
+    marginTop: 1,
+  },
+  vacDate: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: Colors.primary,
+    marginTop: 2,
+  },
+  vacBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  vacBadgeText: {
+    letterSpacing: 0.5,
+  },
+  vacBadgeGreen: {
+    backgroundColor: Colors.successLight,
+  },
+  vacBadgeTextGreen: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: Colors.success,
+  },
+  vacBadgeAmber: {
+    backgroundColor: Colors.warningLight,
+  },
+  vacBadgeTextAmber: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: Colors.warning,
+  },
+  callVetBtn: {
+    backgroundColor: Colors.primaryLight,
+    borderWidth: 1,
+    borderColor: '#fed7cf',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderRadius: 12,
+    gap: 8,
+    marginTop: 12,
+  },
+  callVetIcon: {
+    fontSize: 16,
+  },
+  callVetText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: Colors.primary,
+  },
+});
