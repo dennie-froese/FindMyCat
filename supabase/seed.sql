@@ -3,14 +3,68 @@
 -- File: supabase/seed.sql
 -- ============================================================================
 
--- 1. Create Demo User Profiles
+-- 1. Create Demo Users in auth.users (Required for foreign key constraints)
+INSERT INTO auth.users (
+    id,
+    instance_id,
+    aud,
+    role,
+    email,
+    encrypted_password,
+    email_confirmed_at,
+    raw_app_meta_data,
+    raw_user_meta_data,
+    created_at,
+    updated_at,
+    confirmation_token,
+    recovery_token
+)
+VALUES
+    (
+        '00000000-0000-0000-0000-000000000001',
+        '00000000-0000-0000-0000-000000000000',
+        'authenticated',
+        'authenticated',
+        'sarah.jenkins@example.com',
+        crypt('demoPassword123!', gen_salt('bf')),
+        now(),
+        '{"provider":"email","providers":["email"]}',
+        '{"display_name":"Sarah J.","full_name":"Sarah Jenkins"}',
+        now(),
+        now(),
+        '',
+        ''
+    ),
+    (
+        '00000000-0000-0000-0000-000000000002',
+        '00000000-0000-0000-0000-000000000000',
+        'authenticated',
+        'authenticated',
+        'liam.davies@example.com',
+        crypt('demoPassword123!', gen_salt('bf')),
+        now(),
+        '{"provider":"email","providers":["email"]}',
+        '{"display_name":"Liam D.","full_name":"Liam Davies"}',
+        now(),
+        now(),
+        '',
+        ''
+    )
+ON CONFLICT (id) DO NOTHING;
+
+-- 2. Populate / Update Demo User Profiles
 INSERT INTO public.profiles (id, full_name, display_name, phone_number, neighborhood_name, is_verified_caretaker)
 VALUES
     ('00000000-0000-0000-0000-000000000001', 'Sarah Jenkins', 'Sarah J.', '+44 7700 900123', 'Victoria Park / Hackney', true),
     ('00000000-0000-0000-0000-000000000002', 'Liam Davies', 'Liam D.', '+44 7700 900456', 'Bow & Mile End', false)
-ON CONFLICT (id) DO NOTHING;
+ON CONFLICT (id) DO UPDATE SET
+    full_name = EXCLUDED.full_name,
+    display_name = EXCLUDED.display_name,
+    phone_number = EXCLUDED.phone_number,
+    neighborhood_name = EXCLUDED.neighborhood_name,
+    is_verified_caretaker = EXCLUDED.is_verified_caretaker;
 
--- 2. Create Registered Cats
+-- 3. Create Registered Cats
 INSERT INTO public.cats (
     id,
     owner_id,
@@ -65,7 +119,7 @@ VALUES
     )
 ON CONFLICT (id) DO NOTHING;
 
--- 3. Vaccination Records for Pet Passport
+-- 4. Vaccination Records for Pet Passport
 INSERT INTO public.vaccination_records (cat_id, name, administered_date, next_due_date, vet_clinic)
 VALUES
     ('11111111-1111-1111-1111-111111111111', 'Cat Flu & Enteritis (Core Booster)', '2026-03-15', '2027-03-15', 'Victoria Park Vets'),
@@ -73,10 +127,11 @@ VALUES
     ('11111111-1111-1111-1111-111111111111', 'Annual Microchip Check & Health Screen', '2026-03-15', '2027-03-15', 'Victoria Park Vets')
 ON CONFLICT DO NOTHING;
 
--- 4. Sightings (The trigger trg_sightings_privacy_shield automatically generates jittered_location!)
+-- 5. Sightings (The trigger trg_sightings_privacy_shield automatically generates jittered_location!)
 INSERT INTO public.sightings (
     id,
     cat_id,
+    reporter_id,
     cat_name_hint,
     photo_url,
     approximate_location_name,
@@ -92,6 +147,7 @@ VALUES
     (
         '33333333-3333-3333-3333-333333333331',
         '11111111-1111-1111-1111-111111111111',
+        '00000000-0000-0000-0000-000000000001',
         'Looks like Mochi',
         'https://images.unsplash.com/photo-1533738363-b7f9aef128ce?w=600&auto=format&fit=crop&q=80',
         'Behind Pavilion Cafe, hedge line',
@@ -106,6 +162,7 @@ VALUES
     (
         '33333333-3333-3333-3333-333333333332',
         NULL,
+        '00000000-0000-0000-0000-000000000002',
         'Calico shorthair',
         'https://images.unsplash.com/photo-1573865526739-10659fec78a5?w=600&auto=format&fit=crop&q=80',
         'Gore Road residential alleyway',
@@ -119,7 +176,7 @@ VALUES
     )
 ON CONFLICT (id) DO NOTHING;
 
--- 5. Community Alerts (Amber Alerts & Sightings)
+-- 6. Community Alerts (Amber Alerts & Sightings)
 INSERT INTO public.community_alerts (
     id,
     cat_id,
@@ -147,7 +204,7 @@ VALUES
     )
 ON CONFLICT (id) DO NOTHING;
 
--- 6. TNR Community Cat Colonies
+-- 7. TNR Community Cat Colonies
 INSERT INTO public.tnr_colonies (
     id,
     name,
