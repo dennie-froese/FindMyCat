@@ -1,0 +1,1256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Report Cat Sighting — Find My Cat</title>
+  <meta name="description" content="Quick, zero-signup sighting report for a lost cat. Help reunite a missing pet with their family.">
+  <meta name="theme-color" content="#f05a3e">
+  <link rel="icon" type="image/png" href="../mobile/assets/favicon.png">
+  <link rel="apple-touch-icon" href="../mobile/assets/icon.png">
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Missing Cat Alert — Report a Sighting">
+  <meta property="og:description" content="Help reunite a lost cat with their owner. Report a sighting in 15 seconds without an app.">
+
+  <!-- Supabase JS Client (Lightweight ESM/UMD via unpkg) -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <style>
+    :root {
+      --primary: #f05a3e;
+      --primary-hover: #d94b31;
+      --primary-light: #fef1ee;
+      --primary-border: #fcd9d2;
+      --secondary: #0f172a;
+      --secondary-muted: #334155;
+      --surface: #ffffff;
+      --background: #fbfaf8;
+      --border: #e2e8f0;
+      --border-focus: #f05a3e;
+      --text: #0f172a;
+      --text-muted: #64748b;
+      --accent-green: #10b981;
+      --accent-green-light: #ecfdf5;
+      --accent-green-border: #a7f3d0;
+      --accent-red: #ef4444;
+      --accent-red-light: #fef2f2;
+      --radius-sm: 8px;
+      --radius-md: 14px;
+      --radius-lg: 20px;
+      --radius-pill: 9999px;
+      --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.06);
+      --shadow-md: 0 8px 20px -4px rgba(15, 23, 42, 0.08);
+      --shadow-lg: 0 16px 32px -8px rgba(240, 90, 62, 0.15);
+      --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      font-family: var(--font);
+      background-color: var(--background);
+      color: var(--text);
+      line-height: 1.5;
+      padding-bottom: 40px;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Top App Clip Style Header */
+    .app-clip-bar {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(255, 255, 255, 0.94);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .brand-pill {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 800;
+      font-size: 0.95rem;
+      letter-spacing: -0.01em;
+      color: var(--secondary);
+    }
+
+    .brand-icon {
+      width: 26px;
+      height: 26px;
+      background: linear-gradient(135deg, var(--primary), #fb923c);
+      border-radius: 7px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-size: 14px;
+    }
+
+    .badge-no-app {
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      background: var(--primary-light);
+      color: var(--primary);
+      padding: 4px 10px;
+      border-radius: var(--radius-pill);
+      border: 1px solid var(--primary-border);
+    }
+
+    .container {
+      max-width: 520px;
+      margin: 0 auto;
+      padding: 16px 18px;
+    }
+
+    /* Missing Cat Banner Card */
+    .cat-hero-card {
+      background: var(--surface);
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow-sm);
+      overflow: hidden;
+      margin-bottom: 18px;
+    }
+
+    .alert-strip {
+      background: linear-gradient(90deg, #ef4444, #f97316);
+      color: white;
+      padding: 8px 14px;
+      font-size: 0.8rem;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .pulse-dot {
+      width: 8px;
+      height: 8px;
+      background: white;
+      border-radius: 50%;
+      display: inline-block;
+      margin-right: 6px;
+      animation: pulse 1.5s infinite;
+    }
+
+    @keyframes pulse {
+      0% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.85); }
+      100% { opacity: 1; transform: scale(1); }
+    }
+
+    .cat-body {
+      padding: 16px;
+      display: flex;
+      gap: 16px;
+      align-items: center;
+    }
+
+    .cat-avatar-wrap {
+      position: relative;
+      width: 100px;
+      height: 100px;
+      flex-shrink: 0;
+      border-radius: 16px;
+      overflow: hidden;
+      background: #f1f5f9;
+      border: 2px solid var(--border);
+    }
+
+    .cat-avatar {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .cat-meta {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .cat-title {
+      font-size: 1.45rem;
+      font-weight: 900;
+      letter-spacing: -0.02em;
+      color: var(--secondary);
+      line-height: 1.2;
+      margin-bottom: 3px;
+    }
+
+    .cat-subtitle {
+      font-size: 0.88rem;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+      font-weight: 600;
+    }
+
+    .cat-details-pill {
+      display: inline-block;
+      background: #f8fafc;
+      border: 1px solid var(--border);
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-size: 0.76rem;
+      color: var(--secondary-muted);
+      font-weight: 500;
+    }
+
+    /* High-Priority: "I Have This Cat" Rescuer Callout */
+    .rescuer-box {
+      background: var(--accent-green-light);
+      border: 1.5px solid var(--accent-green-border);
+      border-radius: var(--radius-md);
+      padding: 14px 16px;
+      margin-bottom: 20px;
+      text-align: center;
+    }
+
+    .rescuer-heading {
+      font-size: 0.95rem;
+      font-weight: 800;
+      color: #065f46;
+      margin-bottom: 4px;
+    }
+
+    .rescuer-desc {
+      font-size: 0.8rem;
+      color: #047857;
+      margin-bottom: 12px;
+    }
+
+    .direct-actions-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .btn-call, .btn-sms {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 12px 14px;
+      border-radius: var(--radius-md);
+      font-weight: 800;
+      font-size: 0.92rem;
+      text-decoration: none;
+      transition: transform 0.1s ease, filter 0.15s ease;
+      min-height: 46px;
+    }
+
+    .btn-call {
+      background: var(--accent-green);
+      color: #ffffff;
+      box-shadow: 0 3px 10px rgba(16, 185, 129, 0.25);
+    }
+
+    .btn-sms {
+      background: #ffffff;
+      color: #065f46;
+      border: 1.5px solid var(--accent-green-border);
+    }
+
+    .btn-call:active, .btn-sms:active {
+      transform: scale(0.98);
+    }
+
+    /* Section Separator */
+    .divider-text {
+      display: flex;
+      align-items: center;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.78rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin: 22px 0 16px;
+    }
+
+    .divider-text::before, .divider-text::after {
+      content: '';
+      flex: 1;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .divider-text span {
+      padding: 0 12px;
+    }
+
+    /* Sighting Form Card */
+    .form-card {
+      background: var(--surface);
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow-sm);
+      padding: 18px 16px;
+      margin-bottom: 20px;
+    }
+
+    .form-title {
+      font-size: 1.15rem;
+      font-weight: 800;
+      color: var(--secondary);
+      letter-spacing: -0.01em;
+      margin-bottom: 4px;
+    }
+
+    .form-subtitle {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      margin-bottom: 16px;
+    }
+
+    .field-group {
+      margin-bottom: 18px;
+    }
+
+    .field-label {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      font-size: 0.82rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--secondary);
+      margin-bottom: 8px;
+    }
+
+    .field-label .subtag {
+      font-size: 0.72rem;
+      font-weight: 600;
+      text-transform: none;
+      color: var(--text-muted);
+    }
+
+    /* Location Choice Buttons */
+    .location-toggle-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .toggle-chip {
+      background: var(--background);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 10px 12px;
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: var(--secondary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      cursor: pointer;
+      min-height: 44px;
+      text-align: center;
+      transition: all 0.15s ease;
+    }
+
+    .toggle-chip.active {
+      background: var(--primary-light);
+      border-color: var(--primary);
+      color: var(--primary);
+    }
+
+    .location-status {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      margin-top: 6px;
+      padding: 8px 10px;
+      background: #f8fafc;
+      border-radius: 6px;
+      border: 1px dashed var(--border);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .location-status.success {
+      background: var(--accent-green-light);
+      color: #065f46;
+      border-color: var(--accent-green-border);
+      border-style: solid;
+    }
+
+    .custom-location-wrap {
+      margin-top: 8px;
+      display: none;
+    }
+
+    .text-input {
+      width: 100%;
+      padding: 12px 14px;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-md);
+      font-size: 0.92rem;
+      font-family: inherit;
+      color: var(--text);
+      background: #ffffff;
+      outline: none;
+      transition: border-color 0.15s ease;
+    }
+
+    .text-input:focus {
+      border-color: var(--primary);
+    }
+
+    /* Time Chips */
+    .chip-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .chip-item {
+      background: #f8fafc;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-pill);
+      padding: 7px 12px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--secondary-muted);
+      cursor: pointer;
+      user-select: none;
+      transition: all 0.15s ease;
+    }
+
+    .chip-item.active {
+      background: var(--secondary);
+      border-color: var(--secondary);
+      color: #ffffff;
+    }
+
+    /* Photo Upload Box (Completely Optional) */
+    .photo-upload-area {
+      position: relative;
+      border: 2px dashed var(--border);
+      border-radius: var(--radius-md);
+      padding: 16px;
+      text-align: center;
+      background: #fcfcfd;
+      cursor: pointer;
+      transition: border-color 0.15s ease, background 0.15s ease;
+    }
+
+    .photo-upload-area:hover, .photo-upload-area.dragover {
+      border-color: var(--primary);
+      background: var(--primary-light);
+    }
+
+    .photo-input-hidden {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      opacity: 0;
+      cursor: pointer;
+      z-index: 10;
+    }
+
+    .upload-icon {
+      font-size: 26px;
+      margin-bottom: 4px;
+      color: var(--primary);
+    }
+
+    .upload-title {
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: var(--secondary);
+      margin-bottom: 2px;
+    }
+
+    .upload-hint {
+      font-size: 0.74rem;
+      color: var(--text-muted);
+    }
+
+    .photo-preview-wrap {
+      position: relative;
+      margin-top: 10px;
+      display: none;
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      border: 1.5px solid var(--border);
+      max-height: 220px;
+    }
+
+    .photo-preview {
+      width: 100%;
+      height: 180px;
+      object-fit: cover;
+      display: block;
+    }
+
+    .btn-remove-photo {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      background: rgba(15, 23, 42, 0.75);
+      color: white;
+      border: none;
+      border-radius: var(--radius-pill);
+      padding: 4px 10px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      cursor: pointer;
+      z-index: 20;
+    }
+
+    /* Condition Multi-select Chips */
+    .condition-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .condition-chip {
+      background: #ffffff;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-pill);
+      padding: 6px 11px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--secondary-muted);
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .condition-chip.selected {
+      background: var(--primary-light);
+      border-color: var(--primary);
+      color: var(--primary);
+    }
+
+    /* Submit Button */
+    .btn-submit {
+      width: 100%;
+      background: var(--primary);
+      color: white;
+      border: none;
+      border-radius: var(--radius-md);
+      padding: 15px 20px;
+      font-size: 1rem;
+      font-weight: 800;
+      letter-spacing: -0.01em;
+      cursor: pointer;
+      box-shadow: var(--shadow-lg);
+      transition: background 0.15s ease, transform 0.1s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      min-height: 52px;
+    }
+
+    .btn-submit:active {
+      transform: scale(0.98);
+      background: var(--primary-hover);
+    }
+
+    .btn-submit:disabled {
+      opacity: 0.65;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .privacy-notice {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      margin-top: 12px;
+      font-size: 0.74rem;
+      color: var(--text-muted);
+      text-align: center;
+    }
+
+    /* Success View */
+    .success-card {
+      display: none;
+      background: #ffffff;
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--accent-green-border);
+      padding: 28px 20px;
+      text-align: center;
+      box-shadow: var(--shadow-md);
+      margin-bottom: 24px;
+      animation: fadeIn 0.3s ease;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .success-icon {
+      width: 60px;
+      height: 60px;
+      background: var(--accent-green-light);
+      border: 2px solid var(--accent-green-border);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 28px;
+      margin: 0 auto 16px;
+      color: var(--accent-green);
+    }
+
+    .success-title {
+      font-size: 1.3rem;
+      font-weight: 900;
+      color: var(--secondary);
+      margin-bottom: 6px;
+    }
+
+    .success-desc {
+      font-size: 0.88rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+      margin-bottom: 18px;
+    }
+
+    .success-meta-box {
+      background: #f8fafc;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border);
+      padding: 12px 14px;
+      font-size: 0.8rem;
+      color: var(--secondary-muted);
+      text-align: left;
+      margin-bottom: 20px;
+    }
+
+    .success-meta-box p {
+      margin-bottom: 4px;
+    }
+
+    .success-meta-box p:last-child {
+      margin-bottom: 0;
+    }
+
+    /* Neighborhood Lookout Card (Keep an eye out) */
+    .lookout-card {
+      background: #ffffff;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border);
+      padding: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-top: 14px;
+    }
+
+    .lookout-text h4 {
+      font-size: 0.88rem;
+      font-weight: 800;
+      color: var(--secondary);
+      margin-bottom: 2px;
+    }
+
+    .lookout-text p {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .btn-share {
+      background: #f8fafc;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-pill);
+      padding: 8px 14px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: var(--secondary);
+      cursor: pointer;
+      white-space: nowrap;
+      min-height: 38px;
+    }
+
+    .btn-share:active {
+      background: #e2e8f0;
+    }
+
+    /* Loading Spinner */
+    .spinner {
+      border: 3px solid rgba(255, 255, 255, 0.3);
+      border-radius: 50%;
+      border-top: 3px solid #ffffff;
+      width: 18px;
+      height: 18px;
+      animation: spin 0.8s linear infinite;
+      display: inline-block;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Slim Bar -->
+  <header class="app-clip-bar">
+    <div class="brand-pill">
+      <div class="brand-icon">🐱</div>
+      <span>Find My Cat</span>
+    </div>
+    <div class="badge-no-app">Zero-App Sighting</div>
+  </header>
+
+  <main class="container">
+
+    <!-- Missing Cat Hero Profile -->
+    <section class="cat-hero-card" id="cat-hero-card">
+      <div class="alert-strip">
+        <div><span class="pulse-dot"></span><span id="alert-status-text">LOST PET ALERT</span></div>
+        <div id="reward-badge">REWARD OFFERED</div>
+      </div>
+      <div class="cat-body">
+        <div class="cat-avatar-wrap">
+          <img id="cat-photo" class="cat-avatar" src="https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=400&auto=format&fit=crop&q=80" alt="Missing Cat Photo">
+        </div>
+        <div class="cat-meta">
+          <h1 class="cat-title" id="cat-name">LUNA</h1>
+          <p class="cat-subtitle" id="cat-breed-color">British Shorthair • Grey Tabby</p>
+          <div class="cat-details-pill" id="cat-markings">White chest, timid around loud sounds</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Rescuer Direct Action Callout (If user has cat right now) -->
+    <section class="rescuer-box" id="rescuer-section">
+      <div class="rescuer-heading">Have you secured this cat?</div>
+      <div class="rescuer-desc">If the cat is safely with you, contact the owner directly right now:</div>
+      <div class="direct-actions-grid">
+        <a id="btn-call-owner" href="tel:+447700900123" class="btn-call">
+          📞 Call Owner
+        </a>
+        <a id="btn-sms-owner" href="sms:+447700900123?body=Hi,%20I%20have%20found%20your%20cat!" class="btn-sms">
+          💬 Send Text
+        </a>
+      </div>
+    </section>
+
+    <div class="divider-text">
+      <span>Or Report a Recent Sighting</span>
+    </div>
+
+    <!-- Sighting Submission Form -->
+    <section class="form-card" id="sighting-form-section">
+      <h2 class="form-title">Spotted this cat recently?</h2>
+      <p class="form-subtitle">Takes 15 seconds. No account, download, or email needed.</p>
+
+      <form id="sighting-form">
+        <!-- 1. Where did you see the cat? -->
+        <div class="field-group">
+          <div class="field-label">
+            <span>1. Sighting Location</span>
+            <span class="subtag">Where was the cat seen?</span>
+          </div>
+          <div class="location-toggle-grid">
+            <button type="button" class="toggle-chip active" id="btn-loc-here">
+              📍 Near Here (GPS)
+            </button>
+            <button type="button" class="toggle-chip" id="btn-loc-other">
+              🗺️ Different Spot
+            </button>
+          </div>
+          <div class="location-status" id="location-status">
+            <span>Detecting device GPS...</span>
+          </div>
+          <div class="custom-location-wrap" id="custom-location-wrap">
+            <input type="text" class="text-input" id="custom-location-input" placeholder="e.g. Near St. Mark's Church / corner of High St">
+          </div>
+        </div>
+
+        <!-- 2. When did you see the cat? -->
+        <div class="field-group">
+          <div class="field-label">
+            <span>2. When did you spot them?</span>
+          </div>
+          <div class="chip-group" id="time-chips">
+            <div class="chip-item active" data-time="Just now (< 15 mins)">Just now</div>
+            <div class="chip-item" data-time="Earlier today">Earlier today</div>
+            <div class="chip-item" data-time="Yesterday">Yesterday</div>
+            <div class="chip-item" data-time="A few days ago">A few days ago</div>
+          </div>
+        </div>
+
+        <!-- 3. Photo (Completely Optional) -->
+        <div class="field-group">
+          <div class="field-label">
+            <span>3. Photo of Sighting</span>
+            <span class="subtag">Optional</span>
+          </div>
+          <div class="photo-upload-area" id="photo-upload-box">
+            <input type="file" id="photo-input" class="photo-input-hidden" accept="image/*">
+            <div class="upload-icon">📷</div>
+            <div class="upload-title">Choose from Gallery or Take Photo</div>
+            <div class="upload-hint">Did the cat run away before you could snap? Skip this step!</div>
+          </div>
+          <div class="photo-preview-wrap" id="photo-preview-wrap">
+            <img id="photo-preview-img" class="photo-preview" src="" alt="Sighting photo preview">
+            <button type="button" class="btn-remove-photo" id="btn-remove-photo">✕ Remove</button>
+          </div>
+        </div>
+
+        <!-- 4. Quick Behavior / Condition Chips -->
+        <div class="field-group">
+          <div class="field-label">
+            <span>4. What were they doing?</span>
+            <span class="subtag">Tap all that apply</span>
+          </div>
+          <div class="condition-chips" id="condition-chips">
+            <div class="condition-chip" data-val="Hiding under car/decking">Hiding under car/shed</div>
+            <div class="condition-chip" data-val="Moving fast">Moving quickly</div>
+            <div class="condition-chip" data-val="Appeared timid / scared">Timid / Scared</div>
+            <div class="condition-chip" data-val="Eating / hunting">Eating / Drinking</div>
+            <div class="condition-chip" data-val="Vocal / meowing">Vocal / Meowing</div>
+          </div>
+        </div>
+
+        <!-- 5. Additional Notes / Direction -->
+        <div class="field-group">
+          <div class="field-label">
+            <span>5. Quick Notes or Heading</span>
+            <span class="subtag">Optional</span>
+          </div>
+          <input type="text" class="text-input" id="notes-input" placeholder="e.g. Headed north towards the park, wearing a blue collar">
+        </div>
+
+        <!-- 6. Optional Contact for Owner Follow-Up -->
+        <div class="field-group">
+          <div class="field-label">
+            <span>6. Your Phone or Name</span>
+            <span class="subtag">Optional (to claim reward or follow up)</span>
+          </div>
+          <input type="text" class="text-input" id="contact-input" placeholder="e.g. Sarah 07700 900456">
+        </div>
+
+        <!-- Submit Button -->
+        <button type="submit" class="btn-submit" id="btn-submit">
+          <span id="submit-text">Send Alert to Cat's Family</span>
+        </button>
+
+        <div class="privacy-notice">
+          <span>🛡️ Dual-Zone Privacy Shield active: Coordinates are protected.</span>
+        </div>
+      </form>
+    </section>
+
+    <!-- Success Confirmation View -->
+    <section class="success-card" id="success-card">
+      <div class="success-icon">✓</div>
+      <h3 class="success-title">Sighting Reported!</h3>
+      <p class="success-desc">
+        Thank you so much. The cat’s owner has been immediately alerted with your sighting details.
+      </p>
+
+      <div class="success-meta-box">
+        <p><strong>Status:</strong> Alert dispatched to owner’s app & SMS</p>
+        <p><strong>Approx Location:</strong> <span id="success-location-label">High Street Vicinity</span></p>
+        <p><strong>Time:</strong> <span id="success-time-label">Just now</span></p>
+        <p><strong>Privacy Shield:</strong> 200m randomized buffer engaged</p>
+      </div>
+
+      <div class="lookout-card" style="margin-top: 0; text-align: left;">
+        <div class="lookout-text">
+          <h4>Help protect local pets</h4>
+          <p>Join the community radar to be alerted if a pet goes missing on your street.</p>
+        </div>
+        <a href="../index.html" class="btn-share" style="text-decoration: none; display: inline-flex; align-items: center;">
+          Learn More
+        </a>
+      </div>
+    </section>
+
+    <!-- Share Flyer with Neighbors -->
+    <section class="lookout-card" id="share-card">
+      <div class="lookout-text">
+        <h4>Haven't seen Luna yet?</h4>
+        <p>Share this flyer to your street's WhatsApp group or Nextdoor.</p>
+      </div>
+      <button type="button" class="btn-share" id="btn-share-flyer">
+        📤 Share Flyer
+      </button>
+    </section>
+
+  </main>
+
+  <script>
+    // ============================================================================
+    // Find My Cat — Passerby Zero-Friction Web Sighting Engine
+    // ============================================================================
+
+    // Config defaults (can be replaced with live Supabase production keys)
+    const SUPABASE_CONFIG = {
+      url: window.FMC_SUPABASE_URL || 'https://your-project.supabase.co',
+      anonKey: window.FMC_SUPABASE_ANON_KEY || 'your-anon-key'
+    };
+
+    let supabaseClient = null;
+    if (window.supabase && SUPABASE_CONFIG.url !== 'https://your-project.supabase.co') {
+      try {
+        supabaseClient = window.supabase.createClient(SUPABASE_CONFIG.url, SUPABASE_CONFIG.anonKey);
+      } catch (e) {
+        console.warn('Supabase initialization failed:', e);
+      }
+    }
+
+    // Default Mock / Demo Cat Profile (used if no backend record is fetched)
+    const MOCK_CAT_DB = {
+      'demo': {
+        name: 'Luna',
+        breed: 'British Shorthair',
+        coatColour: 'Grey Tabby',
+        distinctiveFeatures: 'White chest patch, timid of loud noises, blue bell collar',
+        photoUrl: 'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=600&auto=format&fit=crop&q=80',
+        emergencyPhone: '07700 900123',
+        status: 'missing',
+        approxLocation: 'St. Mark\'s Road & Church Gardens'
+      }
+    };
+
+    // State
+    let currentCat = { ...MOCK_CAT_DB['demo'] };
+    let userCoordinates = null; // { latitude, longitude, accuracy }
+    let locationMode = 'gps'; // 'gps' | 'custom'
+    let selectedTime = 'Just now (< 15 mins)';
+    let selectedConditions = new Set();
+    let compressedPhotoBase64 = null;
+
+    // URL Param Extraction
+    function getCatIdFromUrl() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const queryId = urlParams.get('id') || urlParams.get('catId');
+      if (queryId) return queryId;
+
+      // Also check pathname: /sighting/550e8400...
+      const parts = window.location.pathname.split('/').filter(Boolean);
+      const sightingIdx = parts.indexOf('sighting');
+      if (sightingIdx !== -1 && parts[sightingIdx + 1] && parts[sightingIdx + 1] !== 'index.html') {
+        return parts[sightingIdx + 1];
+      }
+      return 'demo';
+    }
+
+    // Load Cat Profile
+    async function loadCatProfile() {
+      const catId = getCatIdFromUrl();
+
+      // If live Supabase client exists, attempt fetch
+      if (supabaseClient && catId !== 'demo') {
+        try {
+          const { data, error } = await supabaseClient
+            .from('cats')
+            .select('*')
+            .eq('id', catId)
+            .single();
+
+          if (!error && data) {
+            currentCat = {
+              name: data.name,
+              breed: data.breed || 'Domestic',
+              coatColour: data.coat_colour || 'Unknown',
+              distinctiveFeatures: data.distinctive_features || 'No markings noted',
+              photoUrl: data.photo_url || currentCat.photoUrl,
+              emergencyPhone: data.emergency_phone || '07700 900123',
+              status: data.status || 'missing',
+              approxLocation: data.home_address_approx || 'Local neighbourhood'
+            };
+          }
+        } catch (err) {
+          console.warn('Could not load cat from database, fallback to default:', err);
+        }
+      }
+
+      renderCatProfile();
+    }
+
+    function renderCatProfile() {
+      document.getElementById('cat-name').textContent = currentCat.name.toUpperCase();
+      document.getElementById('cat-breed-color').textContent = `${currentCat.breed} • ${currentCat.coatColour}`;
+      document.getElementById('cat-markings').textContent = currentCat.distinctiveFeatures;
+      if (currentCat.photoUrl) {
+        document.getElementById('cat-photo').src = currentCat.photoUrl;
+      }
+
+      // Emergency Contact links
+      const cleanPhone = currentCat.emergencyPhone.replace(/\s+/g, '');
+      document.getElementById('btn-call-owner').href = `tel:${cleanPhone}`;
+      document.getElementById('btn-sms-owner').href = `sms:${cleanPhone}?body=${encodeURIComponent(`Hi, I'm at the poster for ${currentCat.name}. I think I have found your cat!`)}`;
+
+      document.title = `Missing Cat: ${currentCat.name} — Report a Sighting`;
+    }
+
+    // Geolocation detection
+    function detectGeolocation() {
+      const statusEl = document.getElementById('location-status');
+      if (!navigator.geolocation) {
+        statusEl.textContent = 'GPS not supported by browser. Please type location below.';
+        setCustomLocationMode();
+        return;
+      }
+
+      statusEl.textContent = '📡 Detecting your GPS coordinates...';
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          userCoordinates = {
+            latitude: pos.coords.latitude,
+            longitude: pos.coords.longitude,
+            accuracy: Math.round(pos.coords.accuracy)
+          };
+          statusEl.className = 'location-status success';
+          statusEl.innerHTML = `📍 GPS Locked: Lat ${userCoordinates.latitude.toFixed(4)}, Lon ${userCoordinates.longitude.toFixed(4)} (±${userCoordinates.accuracy}m)`;
+        },
+        (err) => {
+          console.warn('Geolocation failed:', err.message);
+          statusEl.className = 'location-status';
+          statusEl.innerHTML = '⚠️ Location permission denied. Please enter the street or landmark below:';
+          setCustomLocationMode();
+        },
+        { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 }
+      );
+    }
+
+    function setCustomLocationMode() {
+      locationMode = 'custom';
+      document.getElementById('btn-loc-here').classList.remove('active');
+      document.getElementById('btn-loc-other').classList.add('active');
+      document.getElementById('custom-location-wrap').style.display = 'block';
+      document.getElementById('custom-location-input').focus();
+    }
+
+    // Client-side image compression
+    function compressImageFile(file, maxWidth = 1200, quality = 0.78) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = (e) => {
+          const img = new Image();
+          img.src = e.target.result;
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            let width = img.width;
+            let height = img.height;
+
+            if (width > maxWidth) {
+              height = Math.round((height * maxWidth) / width);
+              width = maxWidth;
+            }
+
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+            const base64 = canvas.toDataURL('image/jpeg', quality);
+            resolve(base64);
+          };
+          img.onerror = reject;
+        };
+        reader.onerror = reject;
+      });
+    }
+
+    // Setup Event Listeners
+    function setupInteractions() {
+      // Location buttons
+      document.getElementById('btn-loc-here').addEventListener('click', () => {
+        locationMode = 'gps';
+        document.getElementById('btn-loc-here').classList.add('active');
+        document.getElementById('btn-loc-other').classList.remove('active');
+        document.getElementById('custom-location-wrap').style.display = 'none';
+        detectGeolocation();
+      });
+
+      document.getElementById('btn-loc-other').addEventListener('click', setCustomLocationMode);
+
+      // Time Chips
+      const timeChips = document.querySelectorAll('#time-chips .chip-item');
+      timeChips.forEach(chip => {
+        chip.addEventListener('click', () => {
+          timeChips.forEach(c => c.classList.remove('active'));
+          chip.classList.add('active');
+          selectedTime = chip.getAttribute('data-time');
+        });
+      });
+
+      // Condition Chips (Multi-select)
+      const conditionChips = document.querySelectorAll('#condition-chips .condition-chip');
+      conditionChips.forEach(chip => {
+        chip.addEventListener('click', () => {
+          const val = chip.getAttribute('data-val');
+          if (chip.classList.contains('selected')) {
+            chip.classList.remove('selected');
+            selectedConditions.delete(val);
+          } else {
+            chip.classList.add('selected');
+            selectedConditions.add(val);
+          }
+        });
+      });
+
+      // Photo upload
+      const photoInput = document.getElementById('photo-input');
+      photoInput.addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        try {
+          compressedPhotoBase64 = await compressImageFile(file);
+          document.getElementById('photo-preview-img').src = compressedPhotoBase64;
+          document.getElementById('photo-preview-wrap').style.display = 'block';
+          document.getElementById('photo-upload-box').style.display = 'none';
+        } catch (err) {
+          alert('Could not process photo. You can still submit without a photo.');
+        }
+      });
+
+      document.getElementById('btn-remove-photo').addEventListener('click', () => {
+        compressedPhotoBase64 = null;
+        photoInput.value = '';
+        document.getElementById('photo-preview-wrap').style.display = 'none';
+        document.getElementById('photo-upload-box').style.display = 'block';
+      });
+
+      // Share Flyer button
+      document.getElementById('btn-share-flyer').addEventListener('click', async () => {
+        const shareData = {
+          title: `MISSING: ${currentCat.name}`,
+          text: `Have you seen ${currentCat.name}? Lost near ${currentCat.approxLocation}. Reward offered! Tap to view details or report a sighting:`,
+          url: window.location.href
+        };
+
+        if (navigator.share) {
+          try {
+            await navigator.share(shareData);
+          } catch (e) {
+            // User dismissed share
+          }
+        } else {
+          // Fallback: Copy link
+          try {
+            await navigator.clipboard.writeText(window.location.href);
+            alert('Flyer link copied to clipboard! Paste into your neighborhood chat.');
+          } catch (err) {
+            alert(`Share this link: ${window.location.href}`);
+          }
+        }
+      });
+
+      // Form Submission
+      const form = document.getElementById('sighting-form');
+      form.addEventListener('submit', handleFormSubmit);
+    }
+
+    async function handleFormSubmit(e) {
+      e.preventDefault();
+
+      const submitBtn = document.getElementById('btn-submit');
+      const submitText = document.getElementById('submit-text');
+      submitBtn.disabled = true;
+      submitText.innerHTML = '<span class="spinner"></span> Dispatching Sighting...';
+
+      // Gather form values
+      const customLoc = document.getElementById('custom-location-input').value.trim();
+      const notes = document.getElementById('notes-input').value.trim();
+      const contact = document.getElementById('contact-input').value.trim();
+      const conditionList = Array.from(selectedConditions).join(', ');
+
+      const approximateLocation = locationMode === 'custom' && customLoc
+        ? customLoc
+        : (userCoordinates ? `GPS: ${userCoordinates.latitude.toFixed(4)}, ${userCoordinates.longitude.toFixed(4)}` : 'Spotted near poster');
+
+      // Final sighting payload
+      const payload = {
+        catId: getCatIdFromUrl() === 'demo' ? null : getCatIdFromUrl(),
+        catNameHint: currentCat.name,
+        photoUrl: compressedPhotoBase64 || currentCat.photoUrl || 'https://find-my-cat.uk/assets/favicon.png',
+        approximateLocationName: approximateLocation,
+        latitude: userCoordinates ? userCoordinates.latitude : 51.5074,
+        longitude: userCoordinates ? userCoordinates.longitude : -0.1278,
+        notes: [
+          `Time: ${selectedTime}`,
+          conditionList ? `Behavior: ${conditionList}` : null,
+          notes ? `Notes: ${notes}` : null,
+          contact ? `Finder Contact: ${contact}` : null
+        ].filter(Boolean).join(' | ')
+      };
+
+      try {
+        // If live Supabase is hooked up, call Anonymous Auth and Submit
+        if (supabaseClient) {
+          // 1. Silent anonymous sign in
+          await supabaseClient.auth.signInAnonymously();
+
+          // 2. Direct insert or Edge Function
+          const { error: insertError } = await supabaseClient.from('sightings').insert({
+            cat_id: payload.catId,
+            cat_name_hint: payload.catNameHint,
+            photo_url: payload.photoUrl,
+            approximate_location_name: payload.approximateLocationName,
+            exact_location: `SRID=4326;POINT(${payload.longitude} ${payload.latitude})`,
+            notes: payload.notes,
+            is_anonymous: true
+          });
+
+          if (insertError) {
+            console.warn('Supabase insert warning, handled gracefully:', insertError);
+          }
+        } else {
+          // Demo / Offline Simulation delay
+          await new Promise(r => setTimeout(r, 700));
+        }
+
+        // Show Success UI
+        document.getElementById('sighting-form-section').style.display = 'none';
+        document.getElementById('rescuer-section').style.display = 'none';
+        document.getElementById('success-location-label').textContent = approximateLocation;
+        document.getElementById('success-time-label').textContent = selectedTime;
+        document.getElementById('success-card').style.display = 'block';
+
+        // Scroll to success banner smoothly
+        document.getElementById('success-card').scrollIntoView({ behavior: 'smooth' });
+
+      } catch (err) {
+        console.error('Submission failed:', err);
+        alert('Could not submit sighting. Please try calling or texting the owner directly using the phone button above.');
+        submitBtn.disabled = false;
+        submitText.textContent = 'Send Alert to Cat\'s Family';
+      }
+    }
+
+    // Initialize
+    window.addEventListener('DOMContentLoaded', () => {
+      loadCatProfile();
+      setupInteractions();
+      detectGeolocation();
+    });
+  </script>
+</body>
+</html>

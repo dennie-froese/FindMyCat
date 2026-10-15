@@ -7,7 +7,8 @@ import { CatProfile } from '../types';
  */
 export function generatePosterHtml(cat: CatProfile): string {
   // Sighting report link (web fallback flow)
-  const sightingUrl = `https://findmycat.app/sighting/${cat.id}`;
+  const baseUrl = process.env.EXPO_PUBLIC_WEB_BASE_URL || 'https://find-my-cat.uk';
+  const sightingUrl = `${baseUrl}/sighting/?id=${encodeURIComponent(cat.id)}`;
   const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(
     sightingUrl
   )}`;

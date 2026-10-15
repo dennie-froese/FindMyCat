@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Redirecting — Find My Cat</title>
+  <script>
+    // GitHub Pages SPA router fallback
+    (function() {
+      var path = window.location.pathname;
+      var segments = path.split('/').filter(Boolean);
+      
+      // If path is /sighting/<id>
+      var sightingIdx = segments.indexOf('sighting');
+      if (sightingIdx !== -1 && segments[sightingIdx + 1] && segments[sightingIdx + 1] !== 'index.html') {
+        var catId = segments[sightingIdx + 1];
+        window.location.replace('/sighting/?id=' + encodeURIComponent(catId));
+        return;
+      }
+
+      // Default fallback redirect to home
+      window.location.replace('/');
+    })();
+  </script>
+</head>
+<body>
+  <p>Redirecting to sighting portal...</p>
+</body>
+</html>
