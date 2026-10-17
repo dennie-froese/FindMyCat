@@ -1,0 +1,14 @@
+{
+  "name": "find-my-cat",
+  "version": "1.0.0",
+  "description": "Find My Cat — Community-Powered Lost Pet Recovery Platform",
+  "scripts": {
+    "test": "npm run test:web && npm run test:mobile",
+    "test:web": "node --test tests/web/web-runner.test.mjs",
+    "test:mobile": "cd mobile && npm test",
+    "test:simulator": "bash mobile/scripts/test-simulator.sh"
+  },
+  "keywords": ["lost-pet", "react-native", "expo", "playwright", "maestro", "testing"],
+  "author": "Find My Cat",
+  "license": "MIT"
+}

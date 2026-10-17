@@ -1,0 +1,21 @@
+appId: host.exp.Exponent
+name: "Find My Cat — 02 Pet Passport & Health Vault Flow"
+---
+- launchApp
+
+# 1. Switch to Pet Passport tab
+- tapOn: "Pet Passport"
+
+# 2. Verify registered pet profile details
+- assertVisible: "Mochi"
+- assertVisible: "985141002345678" # Microchip ISO number
+- assertVisible: "British Shorthair / Ginger Tabby"
+
+# 3. Verify vaccination schedule
+- assertVisible: "Cat Flu & Enteritis (Core Booster)"
+- assertVisible: "Victoria Park Vets"
+
+# 4. Open Lost Pet Poster Preview
+- tapOn: "Generate Missing Flyer (PDF)"
+- assertVisible: "LOST CAT"
+- assertVisible: "Mochi"

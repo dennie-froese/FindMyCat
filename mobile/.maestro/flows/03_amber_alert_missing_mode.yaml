@@ -1,0 +1,18 @@
+appId: host.exp.Exponent
+name: "Find My Cat — 03 Emergency Missing Mode (Amber Alert)"
+---
+- launchApp
+
+# 1. Ensure Pet Passport tab is open
+- tapOn: "Pet Passport"
+
+# 2. Trigger Emergency Missing Mode toggle
+- assertVisible: "Emergency Missing Mode"
+- tapOn: "Emergency Missing Mode"
+
+# 3. Assert Amber Alert confirmation warning modal appears
+- assertVisible: "Trigger Amber Alert?"
+- assertVisible: "Broadcast 2-mile neighborhood alert"
+
+# 4. Confirm or cancel
+- tapOn: "Cancel"

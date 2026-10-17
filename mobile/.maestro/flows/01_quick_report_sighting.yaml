@@ -1,0 +1,22 @@
+appId: host.exp.Exponent
+name: "Find My Cat — 01 Quick Sighting Report Flow"
+---
+# 1. Launch Expo Go / Find My Cat
+- launchApp
+
+# 2. Navigate to Quick Sighting Report tab
+- assertVisible: "Report Sighting"
+- tapOn: "Report Sighting"
+
+# 3. Verify Privacy Shield indicator is active
+- assertVisible: "Dual-Zone Privacy Shield"
+
+# 4. Toggle Location Method (Near Here GPS vs Manual Map)
+- tapOn: "📍 Near Here (GPS)"
+
+# 5. Fill optional spotter details
+- tapOn: "Add notes or distinctive collar tags..."
+- inputText: "Saw a ginger tabby near the park entrance, collar had a small bell."
+
+# 6. Verify submission readiness
+- assertVisible: "Send Alert to Cat's Family"
