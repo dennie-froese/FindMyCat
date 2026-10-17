@@ -729,42 +729,51 @@ ALTER TABLE public.community_alerts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.tnr_colonies ENABLE ROW LEVEL SECURITY;
 
 -- Profiles Policies
+DROP POLICY IF EXISTS "Public profiles are viewable by everyone" ON public.profiles;
 CREATE POLICY "Public profiles are viewable by everyone"
     ON public.profiles FOR SELECT
     USING (true);
 
+DROP POLICY IF EXISTS "Users can update their own profile" ON public.profiles;
 CREATE POLICY "Users can update their own profile"
     ON public.profiles FOR UPDATE
     USING (auth.uid() = id)
     WITH CHECK (auth.uid() = id);
 
+DROP POLICY IF EXISTS "Users can insert their own profile" ON public.profiles;
 CREATE POLICY "Users can insert their own profile"
     ON public.profiles FOR INSERT
     WITH CHECK (auth.uid() = id);
 
 -- Cats Policies
+DROP POLICY IF EXISTS "Guardians can view full details of their own cats" ON public.cats;
 CREATE POLICY "Guardians can view full details of their own cats"
     ON public.cats FOR SELECT
     USING (auth.uid() = owner_id);
 
+DROP POLICY IF EXISTS "Anyone can view missing cat public summaries" ON public.cats;
 CREATE POLICY "Anyone can view missing cat public summaries"
     ON public.cats FOR SELECT
     USING (status = 'missing');
 
+DROP POLICY IF EXISTS "Guardians can insert cats" ON public.cats;
 CREATE POLICY "Guardians can insert cats"
     ON public.cats FOR INSERT
     WITH CHECK (auth.uid() = owner_id);
 
+DROP POLICY IF EXISTS "Guardians can update their cats" ON public.cats;
 CREATE POLICY "Guardians can update their cats"
     ON public.cats FOR UPDATE
     USING (auth.uid() = owner_id)
     WITH CHECK (auth.uid() = owner_id);
 
+DROP POLICY IF EXISTS "Guardians can delete their cats" ON public.cats;
 CREATE POLICY "Guardians can delete their cats"
     ON public.cats FOR DELETE
     USING (auth.uid() = owner_id);
 
 -- Vaccination Records Policies (Restricted to Pet Owner)
+DROP POLICY IF EXISTS "Guardians can view their cats vaccination records" ON public.vaccination_records;
 CREATE POLICY "Guardians can view their cats vaccination records"
     ON public.vaccination_records FOR SELECT
     USING (EXISTS (
@@ -773,6 +782,7 @@ CREATE POLICY "Guardians can view their cats vaccination records"
           AND cats.owner_id = auth.uid()
     ));
 
+DROP POLICY IF EXISTS "Guardians can manage vaccination records" ON public.vaccination_records;
 CREATE POLICY "Guardians can manage vaccination records"
     ON public.vaccination_records FOR ALL
     USING (EXISTS (
@@ -783,6 +793,7 @@ CREATE POLICY "Guardians can manage vaccination records"
 
 -- Sightings Policies
 -- Authenticated sessions (including Supabase Anonymous Auth) can insert sightings
+DROP POLICY IF EXISTS "Users can submit sightings with their auth identity" ON public.sightings;
 CREATE POLICY "Users can submit sightings with their auth identity"
     ON public.sightings FOR INSERT
     WITH CHECK (
@@ -791,6 +802,7 @@ CREATE POLICY "Users can submit sightings with their auth identity"
     );
 
 -- Reporters can view sightings they submitted (via auth identity or fallback token)
+DROP POLICY IF EXISTS "Reporters can view their submitted sightings" ON public.sightings;
 CREATE POLICY "Reporters can view their submitted sightings"
     ON public.sightings FOR SELECT
     USING (
@@ -799,6 +811,7 @@ CREATE POLICY "Reporters can view their submitted sightings"
     );
 
 -- Cat guardians can view exact sightings of their own cat
+DROP POLICY IF EXISTS "Cat guardians can view sightings matching their cat" ON public.sightings;
 CREATE POLICY "Cat guardians can view sightings matching their cat"
     ON public.sightings FOR SELECT
     USING (
@@ -810,6 +823,7 @@ CREATE POLICY "Cat guardians can view sightings matching their cat"
     );
 
 -- Verified community caretakers can view unverified sightings for investigation
+DROP POLICY IF EXISTS "Verified caretakers can view sightings" ON public.sightings;
 CREATE POLICY "Verified caretakers can view sightings"
     ON public.sightings FOR SELECT
     USING (
@@ -821,24 +835,29 @@ CREATE POLICY "Verified caretakers can view sightings"
     );
 
 -- Community Alerts Policies
+DROP POLICY IF EXISTS "Community alerts are publicly readable" ON public.community_alerts;
 CREATE POLICY "Community alerts are publicly readable"
     ON public.community_alerts FOR SELECT
     USING (true);
 
+DROP POLICY IF EXISTS "Authenticated users can create alerts for their cats" ON public.community_alerts;
 CREATE POLICY "Authenticated users can create alerts for their cats"
     ON public.community_alerts FOR INSERT
     WITH CHECK (auth.uid() = created_by);
 
+DROP POLICY IF EXISTS "Alert creators can update their alerts" ON public.community_alerts;
 CREATE POLICY "Alert creators can update their alerts"
     ON public.community_alerts FOR UPDATE
     USING (auth.uid() = created_by)
     WITH CHECK (auth.uid() = created_by);
 
 -- TNR Colonies Policies
+DROP POLICY IF EXISTS "TNR colonies are publicly readable" ON public.tnr_colonies;
 CREATE POLICY "TNR colonies are publicly readable"
     ON public.tnr_colonies FOR SELECT
     USING (true);
 
+DROP POLICY IF EXISTS "Verified caretakers can manage TNR colonies" ON public.tnr_colonies;
 CREATE POLICY "Verified caretakers can manage TNR colonies"
     ON public.tnr_colonies FOR ALL
     USING (

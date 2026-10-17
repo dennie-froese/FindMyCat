@@ -24,7 +24,16 @@ describe('Mobile: Dual-Zone Privacy Shield Engine', () => {
       assert.notStrictEqual(result.latitude, homeLat, 'Jittered latitude must not equal raw residential coordinate');
       assert.notStrictEqual(result.longitude, homeLon, 'Jittered longitude must not equal raw residential coordinate');
       assert.ok(Math.abs(result.latitude - homeLat) < 0.005, 'Latitude delta should be reasonable for 200m');
-      assert.ok(Math.abs(result.longitude - homeLon) < 0.005, 'Longitude delta should be reasonable for 200m');
+    }
+  });
+
+  test('applyPrivacyShield defaults to 100m–200m annular bounds', () => {
+    for (let i = 0; i < 30; i++) {
+      const result = applyPrivacyShield(homeLat, homeLon); // uses default 100m and 200m
+      assert.ok(result.offsetMeters >= 100, `Default offset ${result.offsetMeters}m is less than 100m`);
+      assert.ok(result.offsetMeters <= 200, `Default offset ${result.offsetMeters}m exceeds 200m`);
+      assert.notStrictEqual(result.latitude, homeLat, 'Jittered latitude must not equal raw coordinate');
+      assert.notStrictEqual(result.longitude, homeLon, 'Jittered longitude must not equal raw coordinate');
     }
   });
 

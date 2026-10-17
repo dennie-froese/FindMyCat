@@ -7,17 +7,18 @@
 const EARTH_RADIUS_METERS = 6371000;
 
 /**
- * Applies a randomized 150m – 250m buffer (averaging ~200m) to a coordinate.
- * Uses uniform random angle and distance distribution.
+ * Applies a randomized 100m – 200m buffer (averaging ~155m) to a coordinate.
+ * Uses uniform annular area distribution: r = sqrt(u * (R_max^2 - R_min^2) + R_min^2)
  */
 export function applyPrivacyShield(
   latitude: number,
   longitude: number,
-  minRadiusMeters: number = 150,
-  maxRadiusMeters: number = 250
+  minRadiusMeters: number = 100,
+  maxRadiusMeters: number = 200
 ): { latitude: number; longitude: number; offsetMeters: number } {
-  // Random distance between min and max radius
-  const distance = minRadiusMeters + Math.random() * (maxRadiusMeters - minRadiusMeters);
+  // Uniform areal sampling within the annulus to prevent center clustering
+  const u = Math.random();
+  const distance = Math.sqrt(u * (maxRadiusMeters ** 2 - minRadiusMeters ** 2) + minRadiusMeters ** 2);
   
   // Random bearing in radians (0 to 2*PI)
   const bearing = Math.random() * 2 * Math.PI;
