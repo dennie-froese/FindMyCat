@@ -54,6 +54,44 @@ const SEED_CATS: CatProfile[] = [
       },
     ],
   },
+  {
+    id: 'cat-2',
+    name: 'Luna',
+    breed: 'Domestic Shorthair / Tuxedo',
+    gender: 'Female',
+    isNeutered: true,
+    ageYears: 2,
+    coatColour: 'Sleek Black with White Moustache & Paws',
+    distinctiveFeatures: 'Distinct asymmetrical white moustache, golden-amber eyes',
+    microchipNumber: '985141009876543',
+    photoUrl: 'https://images.unsplash.com/photo-1518791841217-8f162f1e1131?w=600&auto=format&fit=crop&q=80',
+    status: 'safe',
+    emergencyPhone: '+44 7700 900123',
+    homeAddressApprox: 'Near Victoria Park / St. Mark’s Gate',
+    homeCoords: {
+      latitude: 51.5362,
+      longitude: -0.0385,
+    },
+    medicalNotes: 'Very playful. Up to date on all preventive treatments.',
+    vaccinations: [
+      {
+        id: 'vac-luna-1',
+        name: 'Cat Flu & Enteritis (Core Booster)',
+        administeredDate: '2026-01-20',
+        nextDueDate: '2027-01-20',
+        vetClinic: 'Victoria Park Vets',
+        isUpToDate: true,
+      },
+      {
+        id: 'vac-luna-2',
+        name: 'Rabies & Travel Health Certificate',
+        administeredDate: '2025-11-05',
+        nextDueDate: '2026-11-05',
+        vetClinic: 'Victoria Park Vets',
+        isUpToDate: true,
+      },
+    ],
+  },
 ];
 
 const SEED_SIGHTINGS: SightingReport[] = [
@@ -160,6 +198,30 @@ export async function saveCatProfiles(cats: CatProfile[]): Promise<void> {
     await AsyncStorage.setItem(STORAGE_KEYS.CATS, JSON.stringify(cats));
   } catch (error) {
     console.error('Failed to save cats:', error);
+  }
+}
+
+export async function addCatProfile(newCat: CatProfile): Promise<CatProfile[]> {
+  try {
+    const current = await loadCatProfiles();
+    const updated = [...current, newCat];
+    await saveCatProfiles(updated);
+    return updated;
+  } catch (error) {
+    console.error('Failed to add cat profile:', error);
+    return [];
+  }
+}
+
+export async function deleteCatProfile(catId: string): Promise<CatProfile[]> {
+  try {
+    const current = await loadCatProfiles();
+    const updated = current.filter((c) => c.id !== catId);
+    await saveCatProfiles(updated);
+    return updated;
+  } catch (error) {
+    console.error('Failed to delete cat profile:', error);
+    return [];
   }
 }
 
