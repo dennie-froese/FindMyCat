@@ -10,6 +10,7 @@
     "primaryColor": "#f05a3e",
     "ios": {
       "supportsTablet": true,
+      "bundleIdentifier": "com.findmycat.app",
       "infoPlist": {
         "NSCameraUsageDescription": "Find My Cat needs camera access to take quick photos of sighted lost cats.",
         "NSPhotoLibraryUsageDescription": "Find My Cat needs photo library access to upload photos and read geotag location metadata.",
@@ -17,7 +18,9 @@
       }
     },
     "android": {
+      "package": "com.findmycat.app",
       "adaptiveIcon": {
+
         "backgroundColor": "#fbfaf8",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
