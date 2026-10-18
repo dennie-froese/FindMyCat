@@ -13,9 +13,16 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../theme/colors';
 import { CatProfile, GuardianSubscriptionStatus } from '../types';
 import { AmberAlertCheckoutModal } from '../components/AmberAlertCheckoutModal';
+import { PetSelectorBar } from '../components/PetSelectorBar';
+import { AddPetModal } from '../components/AddPetModal';
+import { scheduleLocalBoosterAlerts } from '../services/reminderService';
 
 interface PetPassportScreenProps {
   cat: CatProfile;
+  cats: CatProfile[];
+  selectedCatId: string;
+  onSelectCat: (catId: string) => void;
+  onAddCat: (newCat: CatProfile) => void;
   guardianStatus: GuardianSubscriptionStatus;
   onUpdateCat: (updated: CatProfile) => void;
   onGeneratePoster: () => void;
@@ -24,6 +31,10 @@ interface PetPassportScreenProps {
 
 export const PetPassportScreen: React.FC<PetPassportScreenProps> = ({
   cat,
+  cats,
+  selectedCatId,
+  onSelectCat,
+  onAddCat,
   guardianStatus,
   onUpdateCat,
   onGeneratePoster,
@@ -31,6 +42,7 @@ export const PetPassportScreen: React.FC<PetPassportScreenProps> = ({
 }) => {
   const [copiedChip, setCopiedChip] = useState(false);
   const [amberModalVisible, setAmberModalVisible] = useState(false);
+  const [addPetModalVisible, setAddPetModalVisible] = useState(false);
 
   const isMissing = cat.status === 'missing';
   const isGuardianActive = guardianStatus.isActive;
@@ -103,6 +115,14 @@ export const PetPassportScreen: React.FC<PetPassportScreenProps> = ({
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      {/* 0. Multi-Pet Selector Carousel */}
+      <PetSelectorBar
+        cats={cats}
+        selectedCatId={selectedCatId}
+        onSelectCat={onSelectCat}
+        onAddPetPress={() => setAddPetModalVisible(true)}
+      />
+
       {/* 1. Cat Guardian Subscription Tier Banner (RevenueCat StoreKit 2 / Google Play) */}
       <TouchableOpacity
         style={[
@@ -328,6 +348,19 @@ export const PetPassportScreen: React.FC<PetPassportScreenProps> = ({
             </View>
           ))}
         </View>
+
+        {/* Local 7-Day & 1-Day Booster Reminder Sync */}
+        <TouchableOpacity
+          style={styles.boosterSyncBtn}
+          onPress={() => {
+            const res = scheduleLocalBoosterAlerts(cat);
+            Alert.alert('🔔 Booster Reminders Synced', res.confirmationMessage);
+          }}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="notifications" size={16} color="#15803d" />
+          <Text style={styles.boosterSyncText}>Sync 7-Day & 1-Day Booster Push Alerts</Text>
+        </TouchableOpacity>
       </View>
 
       {/* 7. Emergency Vet Quick Action */}
@@ -358,6 +391,13 @@ export const PetPassportScreen: React.FC<PetPassportScreenProps> = ({
         cat={cat}
         onClose={() => setAmberModalVisible(false)}
         onAlertActivated={handleAmberAlertActivated}
+      />
+
+      {/* Modal for Registering a New Pet Passport */}
+      <AddPetModal
+        visible={addPetModalVisible}
+        onClose={() => setAddPetModalVisible(false)}
+        onSaveCat={onAddCat}
       />
     </ScrollView>
 
@@ -745,5 +785,22 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
     color: Colors.primary,
+  },
+  boosterSyncBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: '#f0fdf4',
+    borderWidth: 1,
+    borderColor: '#86efac',
+    borderRadius: 10,
+    paddingVertical: 10,
+    marginTop: 12,
+  },
+  boosterSyncText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#15803d',
   },
 });

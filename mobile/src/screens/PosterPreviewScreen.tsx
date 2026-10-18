@@ -16,9 +16,15 @@ import { generateAndSharePoster } from '../services/posterGenerator';
 
 interface PosterPreviewScreenProps {
   cat: CatProfile;
+  cats?: CatProfile[];
+  onSelectCat?: (catId: string) => void;
 }
 
-export const PosterPreviewScreen: React.FC<PosterPreviewScreenProps> = ({ cat }) => {
+export const PosterPreviewScreen: React.FC<PosterPreviewScreenProps> = ({
+  cat,
+  cats,
+  onSelectCat,
+}) => {
   const [generating, setGenerating] = useState(false);
 
   const sightingUrl = `https://findmycat.app/sighting/${cat.id}`;
@@ -39,6 +45,43 @@ export const PosterPreviewScreen: React.FC<PosterPreviewScreenProps> = ({ cat })
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      {/* Multi-Pet Selector for Poster if multiple cats exist */}
+      {cats && cats.length > 1 && onSelectCat && (
+        <View style={styles.petSelectorWrapper}>
+          <Text style={styles.petSelectorLabel}>SELECT CAT FOR POSTER:</Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.petSelectorScroll}
+          >
+            {cats.map((c) => {
+              const isSelected = c.id === cat.id;
+              return (
+                <TouchableOpacity
+                  key={c.id}
+                  style={[
+                    styles.petSelectorPill,
+                    isSelected && styles.petSelectorPillActive,
+                  ]}
+                  onPress={() => onSelectCat(c.id)}
+                  activeOpacity={0.7}
+                >
+                  <Image source={{ uri: c.photoUrl }} style={styles.pillAvatar} />
+                  <Text
+                    style={[
+                      styles.pillText,
+                      isSelected && styles.pillTextActive,
+                    ]}
+                  >
+                    {c.name} {c.status === 'missing' ? '🚨' : ''}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        </View>
+      )}
+
       {/* Intro info box */}
       <View style={styles.infoBanner}>
         <Ionicons name="flash" size={20} color="#1d4ed8" />
@@ -335,5 +378,54 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
     textAlign: 'center',
     marginTop: 4,
+  },
+  petSelectorWrapper: {
+    backgroundColor: Colors.surface,
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    marginBottom: 4,
+  },
+  petSelectorLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: Colors.textMuted,
+    letterSpacing: 0.5,
+    marginBottom: 8,
+  },
+  petSelectorScroll: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  petSelectorPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#f8fafc',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: '#e2e8f0',
+  },
+  petSelectorPillActive: {
+    backgroundColor: '#fff7ed',
+    borderColor: Colors.primary,
+  },
+  pillAvatar: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#cbd5e1',
+  },
+  pillText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.textSecondary,
+  },
+  pillTextActive: {
+    color: Colors.primary,
+    fontWeight: '800',
   },
 });

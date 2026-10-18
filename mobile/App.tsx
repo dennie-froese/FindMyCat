@@ -16,6 +16,7 @@ import { CatProfile, SightingReport, CommunityAlert, MainTab, GuardianSubscripti
 import {
   loadCatProfiles,
   saveCatProfiles,
+  addCatProfile,
   loadSightings,
   saveNewSighting,
   loadCommunityAlerts,
@@ -44,6 +45,7 @@ export default function App() {
   });
 
   const [cats, setCats] = useState<CatProfile[]>([]);
+  const [selectedCatId, setSelectedCatId] = useState<string>('');
   const [sightings, setSightings] = useState<SightingReport[]>([]);
   const [alerts, setAlerts] = useState<CommunityAlert[]>([]);
 
@@ -61,6 +63,9 @@ export default function App() {
           loadCommunityAlerts(),
         ]);
         setCats(loadedCats);
+        if (loadedCats.length > 0) {
+          setSelectedCatId((prev) => prev || loadedCats[0].id);
+        }
         setSightings(loadedSightings);
         setAlerts(loadedAlerts);
       } catch (e) {
@@ -104,13 +109,20 @@ export default function App() {
     setCats(updatedCats);
     await saveCatProfiles(updatedCats);
 
-    // If marked missing, jump to poster tab
+    // If marked missing, switch active cat to it and jump to poster tab
     if (updatedCat.status === 'missing') {
+      setSelectedCatId(updatedCat.id);
       setActiveTab('poster');
     }
   };
 
-  const activeCat = cats[0] || null;
+  const handleAddCat = async (newCat: CatProfile) => {
+    const updatedCats = await addCatProfile(newCat);
+    setCats(updatedCats);
+    setSelectedCatId(newCat.id);
+  };
+
+  const activeCat = cats.find((c) => c.id === selectedCatId) || cats[0] || null;
   const isAnyCatMissing = cats.some((c) => c.status === 'missing');
 
   const getHeaderProps = () => {
@@ -188,6 +200,10 @@ export default function App() {
           {activeTab === 'passport' && activeCat && (
             <PetPassportScreen
               cat={activeCat}
+              cats={cats}
+              selectedCatId={activeCat.id}
+              onSelectCat={setSelectedCatId}
+              onAddCat={handleAddCat}
               guardianStatus={guardianStatus}
               onUpdateCat={handleUpdateCat}
               onGeneratePoster={() => setActiveTab('poster')}
@@ -196,7 +212,11 @@ export default function App() {
           )}
 
           {activeTab === 'poster' && activeCat && (
-            <PosterPreviewScreen cat={activeCat} />
+            <PosterPreviewScreen
+              cat={activeCat}
+              cats={cats}
+              onSelectCat={setSelectedCatId}
+            />
           )}
         </View>
 
