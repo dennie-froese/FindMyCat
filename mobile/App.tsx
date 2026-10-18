@@ -12,7 +12,7 @@ import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 
 import { Colors } from './src/theme/colors';
-import { CatProfile, SightingReport, CommunityAlert, MainTab } from './src/types';
+import { CatProfile, SightingReport, CommunityAlert, MainTab, GuardianSubscriptionStatus } from './src/types';
 import {
   loadCatProfiles,
   saveCatProfiles,
@@ -20,26 +20,41 @@ import {
   saveNewSighting,
   loadCommunityAlerts,
 } from './src/services/storage';
+import { revenueCatService, REVENUECAT_CONFIG } from './src/services/revenueCatService';
 
 import { Header } from './src/components/Header';
 import { SightingsFeedScreen } from './src/screens/SightingsFeedScreen';
 import { QuickReportScreen } from './src/screens/QuickReportScreen';
 import { PetPassportScreen } from './src/screens/PetPassportScreen';
 import { PosterPreviewScreen } from './src/screens/PosterPreviewScreen';
+import { GuardianPaywallModal } from './src/components/GuardianPaywallModal';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<MainTab>('feed');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [paywallVisible, setPaywallVisible] = useState(false);
+
+  const [guardianStatus, setGuardianStatus] = useState<GuardianSubscriptionStatus>({
+    isActive: false,
+    tier: 'free',
+    willRenew: false,
+    entitlementId: 'cat_guardian',
+    priceDisplay: REVENUECAT_CONFIG.MONTHLY_PRICE_DISPLAY,
+  });
 
   const [cats, setCats] = useState<CatProfile[]>([]);
   const [sightings, setSightings] = useState<SightingReport[]>([]);
   const [alerts, setAlerts] = useState<CommunityAlert[]>([]);
 
-  // Initial Data Load
+  // Initial Data Load & RevenueCat initialization
   useEffect(() => {
     async function initData() {
       try {
+        await revenueCatService.initialize();
+        const initialStatus = await revenueCatService.getSubscriptionStatus();
+        setGuardianStatus(initialStatus);
+
         const [loadedCats, loadedSightings, loadedAlerts] = await Promise.all([
           loadCatProfiles(),
           loadSightings(),
@@ -56,6 +71,7 @@ export default function App() {
     }
     initData();
   }, []);
+
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -115,7 +131,11 @@ export default function App() {
         return {
           title: 'Digital Pet Passport',
           subtitle: `${activeCat ? activeCat.name : 'Pet'}’s health vault & microchip records`,
-          badge: activeCat?.status === 'missing' ? 'MISSING' : 'PROTECTED',
+          badge: activeCat?.status === 'missing'
+            ? 'MISSING'
+            : guardianStatus.isActive
+            ? 'GUARDIAN MEMBER'
+            : 'PROTECTED',
         };
       case 'poster':
         return {
@@ -168,8 +188,10 @@ export default function App() {
           {activeTab === 'passport' && activeCat && (
             <PetPassportScreen
               cat={activeCat}
+              guardianStatus={guardianStatus}
               onUpdateCat={handleUpdateCat}
               onGeneratePoster={() => setActiveTab('poster')}
+              onOpenPaywall={() => setPaywallVisible(true)}
             />
           )}
 
@@ -177,6 +199,16 @@ export default function App() {
             <PosterPreviewScreen cat={activeCat} />
           )}
         </View>
+
+        {/* Cat Guardian Paywall Modal (RevenueCat StoreKit 2 / Google Play Billing) */}
+        <GuardianPaywallModal
+          visible={paywallVisible}
+          onClose={() => setPaywallVisible(false)}
+          onSubscriptionSuccess={(newStatus) => {
+            setGuardianStatus(newStatus);
+          }}
+        />
+
 
         {/* Bottom Tab Navigation Bar */}
         <View style={styles.bottomNav}>

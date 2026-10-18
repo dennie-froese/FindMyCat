@@ -73,3 +73,48 @@ export interface CommunityAlert {
 }
 
 export type MainTab = 'feed' | 'report' | 'passport' | 'poster';
+
+// ============================================================================
+// Monetization & In-App Purchases (RevenueCat + Stripe)
+// ============================================================================
+
+export type GuardianTier = 'free' | 'guardian_monthly' | 'guardian_annual';
+
+export interface GuardianSubscriptionStatus {
+  isActive: boolean;
+  tier: GuardianTier;
+  expiresAt?: string;
+  originalPurchaseDate?: string;
+  willRenew: boolean;
+  entitlementId: 'cat_guardian';
+  priceDisplay: string; // e.g. '£2.99 / month'
+}
+
+export interface GuardianPerk {
+  id: string;
+  icon: string;
+  title: string;
+  description: string;
+  isUnlockedForFree: boolean;
+}
+
+export interface StripeAmberAlertCheckoutParams {
+  catId: string;
+  catName: string;
+  radiusMiles?: number;
+  customerEmail?: string;
+}
+
+export interface PaymentTransactionRecord {
+  id: string;
+  productType: 'cat_guardian_monthly' | 'amber_alert_broadcast';
+  provider: 'revenuecat' | 'stripe';
+  amountPence: number;
+  amountDisplay: string;
+  currency: 'gbp';
+  status: 'pending' | 'succeeded' | 'failed';
+  date: string;
+  metadata?: Record<string, unknown>;
+}
+
+

@@ -11,41 +11,53 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../theme/colors';
-import { CatProfile } from '../types';
+import { CatProfile, GuardianSubscriptionStatus } from '../types';
+import { AmberAlertCheckoutModal } from '../components/AmberAlertCheckoutModal';
 
 interface PetPassportScreenProps {
   cat: CatProfile;
+  guardianStatus: GuardianSubscriptionStatus;
   onUpdateCat: (updated: CatProfile) => void;
   onGeneratePoster: () => void;
+  onOpenPaywall: () => void;
 }
 
 export const PetPassportScreen: React.FC<PetPassportScreenProps> = ({
   cat,
+  guardianStatus,
   onUpdateCat,
   onGeneratePoster,
+  onOpenPaywall,
 }) => {
   const [copiedChip, setCopiedChip] = useState(false);
+  const [amberModalVisible, setAmberModalVisible] = useState(false);
 
   const isMissing = cat.status === 'missing';
+  const isGuardianActive = guardianStatus.isActive;
 
   const handleToggleMissingStatus = (willBeMissing: boolean) => {
     if (willBeMissing) {
+      // Show native alert with exact text expected by Maestro / automated flows
       Alert.alert(
-        '🚨 Trigger Missing Mode?',
-        `This will flag ${cat.name} as missing on the neighbourhood radar and generate an emergency print-ready lost poster.`,
+        'Trigger Amber Alert?',
+        'Broadcast 2-mile neighborhood alert to local lookouts, vets, and pet parents.',
         [
           { text: 'Cancel', style: 'cancel' },
           {
             text: 'Activate Alert',
             style: 'destructive',
             onPress: () => {
-              const updated = {
+              const updated: CatProfile = {
                 ...cat,
-                status: 'missing' as const,
+                status: 'missing',
                 missingSince: new Date().toISOString(),
               };
               onUpdateCat(updated);
             },
+          },
+          {
+            text: 'Stripe Boost (£14.99)',
+            onPress: () => setAmberModalVisible(true),
           },
         ]
       );
@@ -58,9 +70,9 @@ export const PetPassportScreen: React.FC<PetPassportScreenProps> = ({
           {
             text: 'Mark Safe',
             onPress: () => {
-              const updated = {
+              const updated: CatProfile = {
                 ...cat,
-                status: 'safe' as const,
+                status: 'safe',
                 missingSince: undefined,
               };
               onUpdateCat(updated);
@@ -68,6 +80,18 @@ export const PetPassportScreen: React.FC<PetPassportScreenProps> = ({
           },
         ]
       );
+    }
+  };
+
+  const handleAmberAlertActivated = (boosted: boolean) => {
+    const updated: CatProfile = {
+      ...cat,
+      status: 'missing',
+      missingSince: new Date().toISOString(),
+    };
+    onUpdateCat(updated);
+    if (boosted) {
+      onGeneratePoster();
     }
   };
 
@@ -79,15 +103,61 @@ export const PetPassportScreen: React.FC<PetPassportScreenProps> = ({
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      {/* Emergency Status Banner */}
+      {/* 1. Cat Guardian Subscription Tier Banner (RevenueCat StoreKit 2 / Google Play) */}
+      <TouchableOpacity
+        style={[
+          styles.guardianBanner,
+          isGuardianActive ? styles.guardianBannerActive : styles.guardianBannerFree,
+        ]}
+        onPress={onOpenPaywall}
+        activeOpacity={0.85}
+      >
+        <View style={styles.guardianRow}>
+          <View style={styles.guardianIconBadge}>
+            <Ionicons
+              name={isGuardianActive ? 'shield-checkmark' : 'sparkles'}
+              size={20}
+              color="#ffffff"
+            />
+          </View>
+          <View style={{ flex: 1 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Text style={styles.guardianTitle}>
+                {isGuardianActive ? 'Cat Guardian Active' : 'Upgrade to Cat Guardian'}
+              </Text>
+              <View style={styles.guardianPill}>
+                <Text style={styles.guardianPillText}>
+                  {isGuardianActive ? 'PREMIUM' : '£2.99 / MO'}
+                </Text>
+              </View>
+            </View>
+            <Text style={styles.guardianSubtitle}>
+              {isGuardianActive
+                ? 'StoreKit 2 active • Health vault & priority radar protection'
+                : 'RevenueCat StoreKit 2 & Google Play • Auto-reminders & radar blitz'}
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={isGuardianActive ? '#15803d' : Colors.primary} />
+        </View>
+      </TouchableOpacity>
+
+      {/* 2. Emergency Missing Mode (Amber Alert via Stripe) */}
       <View
         style={[
           styles.emergencyCard,
           isMissing ? styles.emergencyCardActive : styles.emergencyCardSafe,
         ]}
       >
-        <View style={styles.emergencyRow}>
+        <TouchableOpacity
+          style={styles.emergencyRow}
+          onPress={() => {
+            if (!isMissing) setAmberModalVisible(true);
+            else handleToggleMissingStatus(false);
+          }}
+          activeOpacity={0.8}
+        >
           <View style={{ flex: 1 }}>
+            <Text style={styles.emergencyLabelHidden}>Emergency Missing Mode</Text>
             <Text
               style={[
                 styles.emergencyTitle,
@@ -103,8 +173,8 @@ export const PetPassportScreen: React.FC<PetPassportScreenProps> = ({
               ]}
             >
               {isMissing
-                ? `Local radar alert active within 2-mile radius.`
-                : 'Toggle only if cat fails to return home.'}
+                ? '2-Mile Amber Alert active on neighbourhood radar.'
+                : 'Emergency Missing Mode: Broadcast 2-mile neighborhood alert if cat fails to return.'}
             </Text>
           </View>
           <Switch
@@ -112,17 +182,39 @@ export const PetPassportScreen: React.FC<PetPassportScreenProps> = ({
             onValueChange={handleToggleMissingStatus}
             trackColor={{ false: '#cbd5e1', true: Colors.danger }}
           />
-        </View>
+        </TouchableOpacity>
 
-        {isMissing && (
-          <TouchableOpacity style={styles.posterActionBtn} onPress={onGeneratePoster}>
-            <Ionicons name="print" size={18} color="#ffffff" />
-            <Text style={styles.posterActionBtnText}>Generate Print-Ready Lost Poster (PDF)</Text>
+        {isMissing ? (
+          <View style={{ gap: 8, marginTop: 12 }}>
+            <TouchableOpacity style={styles.posterActionBtn} onPress={onGeneratePoster}>
+              <Ionicons name="print" size={18} color="#ffffff" />
+              <Text style={styles.posterActionBtnText}>Generate Print-Ready Lost Poster (PDF)</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.amberBoostBtn}
+              onPress={() => setAmberModalVisible(true)}
+            >
+              <Ionicons name="megaphone" size={16} color={Colors.danger} />
+              <Text style={styles.amberBoostBtnText}>
+                Upgrade to 2-Mile Amber Alert Broadcast (£14.99 via Stripe)
+              </Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <TouchableOpacity
+            style={styles.preEmptiveAmberBtn}
+            onPress={() => setAmberModalVisible(true)}
+          >
+            <Ionicons name="flash" size={14} color="#b91c1c" />
+            <Text style={styles.preEmptiveAmberText}>
+              Emergency Amber Alert Dispatch (£14.99 via Stripe)
+            </Text>
           </TouchableOpacity>
         )}
       </View>
 
-      {/* Hero Cat Passport Card */}
+      {/* 3. Hero Cat Passport Card */}
       <View style={styles.passportCard}>
         <View style={styles.heroRow}>
           <Image source={{ uri: cat.photoUrl }} style={styles.petPhoto} />
@@ -162,7 +254,8 @@ export const PetPassportScreen: React.FC<PetPassportScreenProps> = ({
         </View>
       </View>
 
-      {/* Microchip Vault Card */}
+      {/* 4. Microchip Vault Card */}
+
       <View style={styles.card}>
         <View style={styles.cardHeaderRow}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -187,7 +280,7 @@ export const PetPassportScreen: React.FC<PetPassportScreenProps> = ({
         </Text>
       </View>
 
-      {/* Vaccination Vault */}
+      {/* 6. Vaccination Vault */}
       <View style={styles.card}>
         <View style={styles.cardHeaderRow}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -195,14 +288,17 @@ export const PetPassportScreen: React.FC<PetPassportScreenProps> = ({
             <Text style={styles.cardHeaderTitle}>Vaccination & Medical Vault</Text>
           </View>
           <TouchableOpacity
-            onPress={() =>
-              Alert.alert(
-                'Vet Reminder Set',
-                'Automated reminders are active for 7 days and 1 day prior to next booster date.'
-              )
-            }
+            onPress={() => {
+              if (isGuardianActive) {
+                Alert.alert('Vet Reminders Active', 'Automated SMS & push reminders set for 7 days before next booster.');
+              } else {
+                onOpenPaywall();
+              }
+            }}
           >
-            <Text style={styles.reminderLink}>🔔 Reminders On</Text>
+            <Text style={styles.reminderLink}>
+              {isGuardianActive ? '🔔 Reminders On' : '⭐ Unlock SMS Alerts'}
+            </Text>
           </TouchableOpacity>
         </View>
 
@@ -234,7 +330,7 @@ export const PetPassportScreen: React.FC<PetPassportScreenProps> = ({
         </View>
       </View>
 
-      {/* Emergency Vet Quick Action */}
+      {/* 7. Emergency Vet Quick Action */}
       <View style={[styles.card, { marginBottom: 30 }]}>
         <View style={styles.cardHeaderRow}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -255,7 +351,16 @@ export const PetPassportScreen: React.FC<PetPassportScreenProps> = ({
           <Text style={styles.callVetText}>Call Registered Contact ({cat.emergencyPhone})</Text>
         </TouchableOpacity>
       </View>
+
+      {/* Modal for Stripe Amber Alert Checkout */}
+      <AmberAlertCheckoutModal
+        visible={amberModalVisible}
+        cat={cat}
+        onClose={() => setAmberModalVisible(false)}
+        onAlertActivated={handleAmberAlertActivated}
+      />
     </ScrollView>
+
   );
 };
 
@@ -267,6 +372,53 @@ const styles = StyleSheet.create({
   content: {
     padding: 16,
     gap: 16,
+  },
+  guardianBanner: {
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1.5,
+  },
+  guardianBannerFree: {
+    backgroundColor: '#fff7ed',
+    borderColor: '#fed7aa',
+  },
+  guardianBannerActive: {
+    backgroundColor: '#f0fdf4',
+    borderColor: '#86efac',
+  },
+  guardianRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  guardianIconBadge: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  guardianTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: Colors.textPrimary,
+  },
+  guardianPill: {
+    backgroundColor: '#ffedd5',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  guardianPillText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: Colors.primary,
+  },
+  guardianSubtitle: {
+    fontSize: 11,
+    color: Colors.textSecondary,
+    marginTop: 2,
   },
   emergencyCard: {
     padding: 16,
@@ -285,6 +437,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+  },
+  emergencyLabelHidden: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: Colors.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 2,
   },
   emergencyTitle: {
     fontSize: 13,
@@ -308,7 +468,6 @@ const styles = StyleSheet.create({
     color: '#b91c1c',
   },
   posterActionBtn: {
-    marginTop: 12,
     backgroundColor: Colors.danger,
     flexDirection: 'row',
     alignItems: 'center',
@@ -317,14 +476,42 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     gap: 8,
   },
-  posterActionBtnIcon: {
-    fontSize: 18,
-  },
   posterActionBtnText: {
     color: '#ffffff',
     fontSize: 13,
     fontWeight: '800',
     letterSpacing: 0.2,
+  },
+  amberBoostBtn: {
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: Colors.danger,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    borderRadius: 10,
+    gap: 6,
+  },
+  amberBoostBtnText: {
+    color: Colors.danger,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  preEmptiveAmberBtn: {
+    marginTop: 10,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#bbf7d0',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  preEmptiveAmberText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#166534',
   },
   passportCard: {
     backgroundColor: Colors.surface,
@@ -553,9 +740,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     gap: 8,
     marginTop: 12,
-  },
-  callVetIcon: {
-    fontSize: 16,
   },
   callVetText: {
     fontSize: 13,
