@@ -8,6 +8,11 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "primaryColor": "#f05a3e",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#fbfaf8"
+    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.findmycat.app",
@@ -20,7 +25,6 @@
     "android": {
       "package": "com.findmycat.app",
       "adaptiveIcon": {
-
         "backgroundColor": "#fbfaf8",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
@@ -39,7 +43,20 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-sharing"
+      "expo-sharing",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Find My Cat needs location access to plot approximate sighting locations on the neighborhood map."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Find My Cat needs photo library access to upload photos and read geotag location metadata.",
+          "cameraPermission": "Find My Cat needs camera access to take quick photos of sighted lost cats."
+        }
+      ]
     ]
   }
 }
