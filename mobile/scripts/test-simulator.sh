@@ -7,8 +7,8 @@ echo "=========================================================="
 
 # 1. Check xcrun availability
 if ! command -v xcrun &> /dev/null; then
-  echo "❌ Error: xcrun (Xcode Command Line Tools) is not installed."
-  exit 1
+  echo "⚠️ Notice: xcrun (Xcode Command Line Tools) is not installed. Skipping iOS Simulator smoke test on non-macOS/CI runner."
+  exit 0
 fi
 echo "✔ xcrun toolchain detected"
 

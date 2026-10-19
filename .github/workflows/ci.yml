@@ -1,0 +1,56 @@
+name: CI & Quality Assurance
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-and-verify:
+    name: Run Tests & Typecheck
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: ⬇️ Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js Environment
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+          cache-dependency-path: 'mobile/package-lock.json'
+
+      - name: 📦 Install Mobile Dependencies
+        run: |
+          cd mobile
+          npm ci || npm install
+
+      - name: 🌐 Run Web Automated Tests
+        run: |
+          npm run test:web
+
+      - name: 🔍 Run TypeScript Typecheck
+        run: |
+          cd mobile
+          npm run test:typecheck
+
+      - name: 🧪 Run Mobile Unit Tests (Privacy Shield, Monetization & Multi-Pet)
+        run: |
+          cd mobile
+          npm run test:unit
+
+      - name: 📱 Verify Full End-to-End Suite
+        run: |
+          npm test
+
+      - name: 📋 Validate EAS Build & App Configuration
+        run: |
+          node -e "JSON.parse(require('fs').readFileSync('mobile/app.json', 'utf8'));"
+          node -e "JSON.parse(require('fs').readFileSync('mobile/eas.json', 'utf8'));"
+          echo "✔ App configuration and EAS Build profiles verified valid JSON."
