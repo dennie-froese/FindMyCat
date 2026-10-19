@@ -9,6 +9,7 @@
     "expo": "~57.0.27",
     "expo-image-picker": "~57.0.20",
     "expo-location": "~57.0.20",
+    "expo-notifications": "~57.0.23",
     "expo-print": "~57.0.2",
     "expo-sharing": "~57.0.22",
     "expo-status-bar": "~57.0.1",

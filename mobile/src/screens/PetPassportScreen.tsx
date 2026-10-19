@@ -352,9 +352,12 @@ export const PetPassportScreen: React.FC<PetPassportScreenProps> = ({
         {/* Local 7-Day & 1-Day Booster Reminder Sync */}
         <TouchableOpacity
           style={styles.boosterSyncBtn}
-          onPress={() => {
-            const res = scheduleLocalBoosterAlerts(cat);
-            Alert.alert('🔔 Booster Reminders Synced', res.confirmationMessage);
+          onPress={async () => {
+            const res = await scheduleLocalBoosterAlerts(cat);
+            Alert.alert(
+              res.permissionGranted ? '🔔 Booster Reminders Synced' : '⚠️ Notifications Disabled',
+              res.confirmationMessage
+            );
           }}
           activeOpacity={0.8}
         >

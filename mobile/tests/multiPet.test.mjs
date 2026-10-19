@@ -151,7 +151,7 @@ describe('Retention Engine: Local Booster Reminder Schedule (PASS-02)', () => {
     assert.ok(schedule.urgencyDays < 0);
   });
 
-  test('scheduleLocalBoosterAlerts simulates active OS push registrations', () => {
+  test('scheduleLocalBoosterAlerts simulates active OS push registrations', async () => {
     const cat = {
       id: 'cat-mochi',
       name: 'Mochi',
@@ -177,7 +177,7 @@ describe('Retention Engine: Local Booster Reminder Schedule (PASS-02)', () => {
       ],
     };
 
-    const result = scheduleLocalBoosterAlerts(cat);
+    const result = await scheduleLocalBoosterAlerts(cat);
     assert.strictEqual(result.success, true);
     assert.strictEqual(result.scheduledCount, 2); // 7-day and 1-day alert
     assert.ok(result.confirmationMessage.includes('Scheduled 2 local booster alerts'));
