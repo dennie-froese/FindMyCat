@@ -28,7 +28,7 @@
     "web": "expo start --web",
     "test": "npm run test:typecheck && npm run test:unit && npm run test:sim",
     "test:typecheck": "tsc --noEmit",
-    "test:unit": "node --experimental-strip-types --test tests/privacyEngine.test.mjs tests/monetization.test.mjs tests/multiPet.test.mjs",
+    "test:unit": "node --experimental-strip-types --test tests/privacyEngine.test.mjs tests/monetization.test.mjs tests/multiPet.test.mjs tests/onboarding.test.mjs",
     "test:sim": "bash scripts/test-simulator.sh",
     "build:ios:sim": "eas build --platform ios --profile preview-simulator",
     "build:ios:prod": "eas build --platform ios --profile production",

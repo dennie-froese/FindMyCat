@@ -12,7 +12,7 @@ import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 
 import { Colors } from './src/theme/colors';
-import { CatProfile, SightingReport, CommunityAlert, MainTab, GuardianSubscriptionStatus } from './src/types';
+import { CatProfile, SightingReport, CommunityAlert, MainTab, GuardianSubscriptionStatus, UserRole } from './src/types';
 import {
   loadCatProfiles,
   saveCatProfiles,
@@ -20,6 +20,8 @@ import {
   loadSightings,
   saveNewSighting,
   loadCommunityAlerts,
+  getOnboardingCompleted,
+  setOnboardingCompleted,
 } from './src/services/storage';
 import { revenueCatService, REVENUECAT_CONFIG } from './src/services/revenueCatService';
 
@@ -28,6 +30,7 @@ import { SightingsFeedScreen } from './src/screens/SightingsFeedScreen';
 import { QuickReportScreen } from './src/screens/QuickReportScreen';
 import { PetPassportScreen } from './src/screens/PetPassportScreen';
 import { PosterPreviewScreen } from './src/screens/PosterPreviewScreen';
+import { OnboardingScreen } from './src/screens/OnboardingScreen';
 import { GuardianPaywallModal } from './src/components/GuardianPaywallModal';
 
 export default function App() {
@@ -48,6 +51,7 @@ export default function App() {
   const [selectedCatId, setSelectedCatId] = useState<string>('');
   const [sightings, setSightings] = useState<SightingReport[]>([]);
   const [alerts, setAlerts] = useState<CommunityAlert[]>([]);
+  const [hasOnboarded, setHasOnboarded] = useState<boolean | null>(null);
 
   // Initial Data Load & RevenueCat initialization
   useEffect(() => {
@@ -57,10 +61,11 @@ export default function App() {
         const initialStatus = await revenueCatService.getSubscriptionStatus();
         setGuardianStatus(initialStatus);
 
-        const [loadedCats, loadedSightings, loadedAlerts] = await Promise.all([
+        const [loadedCats, loadedSightings, loadedAlerts, onboarded] = await Promise.all([
           loadCatProfiles(),
           loadSightings(),
           loadCommunityAlerts(),
+          getOnboardingCompleted(),
         ]);
         setCats(loadedCats);
         if (loadedCats.length > 0) {
@@ -68,6 +73,7 @@ export default function App() {
         }
         setSightings(loadedSightings);
         setAlerts(loadedAlerts);
+        setHasOnboarded(onboarded);
       } catch (e) {
         console.error('Initialization error:', e);
       } finally {
@@ -122,6 +128,26 @@ export default function App() {
     setSelectedCatId(newCat.id);
   };
 
+  const handleOnboardingComplete = async ({
+    createdCat,
+    role,
+  }: {
+    createdCat?: CatProfile;
+    role: UserRole;
+  }) => {
+    await setOnboardingCompleted();
+    setHasOnboarded(true);
+
+    if (createdCat) {
+      const updatedCats = await addCatProfile(createdCat);
+      setCats(updatedCats);
+      setSelectedCatId(createdCat.id);
+      setActiveTab('passport');
+    } else if (role === 'spotter') {
+      setActiveTab('feed');
+    }
+  };
+
   const activeCat = cats.find((c) => c.id === selectedCatId) || cats[0] || null;
   const isAnyCatMissing = cats.some((c) => c.status === 'missing');
 
@@ -158,12 +184,21 @@ export default function App() {
     }
   };
 
-  if (loading) {
+  if (loading || hasOnboarded === null) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={Colors.primary} />
         <Text style={styles.loadingText}>Loading Find My Cat...</Text>
       </View>
+    );
+  }
+
+  if (!hasOnboarded) {
+    return (
+      <SafeAreaProvider>
+        <StatusBar style="dark" />
+        <OnboardingScreen onComplete={handleOnboardingComplete} />
+      </SafeAreaProvider>
     );
   }
 

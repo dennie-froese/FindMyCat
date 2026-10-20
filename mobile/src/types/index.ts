@@ -74,6 +74,14 @@ export interface CommunityAlert {
 
 export type MainTab = 'feed' | 'report' | 'passport' | 'poster';
 
+export type UserRole = 'guardian' | 'spotter';
+
+export interface OnboardingState {
+  hasCompleted: boolean;
+  role?: UserRole;
+  completedAt?: string;
+}
+
 // ============================================================================
 // Monetization & In-App Purchases (RevenueCat + Stripe)
 // ============================================================================

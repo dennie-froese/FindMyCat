@@ -5,6 +5,7 @@ const STORAGE_KEYS = {
   CATS: '@fmc_cats_v1',
   SIGHTINGS: '@fmc_sightings_v1',
   ALERTS: '@fmc_alerts_v1',
+  ONBOARDING: '@fmc_onboarding_v1',
 };
 
 const SEED_CATS: CatProfile[] = [
@@ -262,5 +263,30 @@ export async function loadCommunityAlerts(): Promise<CommunityAlert[]> {
   } catch (error) {
     console.error('Failed to load alerts:', error);
     return SEED_ALERTS;
+  }
+}
+
+export async function getOnboardingCompleted(): Promise<boolean> {
+  try {
+    const val = await AsyncStorage.getItem(STORAGE_KEYS.ONBOARDING);
+    return val === 'true';
+  } catch {
+    return false;
+  }
+}
+
+export async function setOnboardingCompleted(): Promise<void> {
+  try {
+    await AsyncStorage.setItem(STORAGE_KEYS.ONBOARDING, 'true');
+  } catch (error) {
+    console.error('Failed to persist onboarding completion:', error);
+  }
+}
+
+export async function resetOnboardingState(): Promise<void> {
+  try {
+    await AsyncStorage.removeItem(STORAGE_KEYS.ONBOARDING);
+  } catch (error) {
+    console.error('Failed to reset onboarding state:', error);
   }
 }
