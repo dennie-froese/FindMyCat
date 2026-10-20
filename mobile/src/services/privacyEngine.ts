@@ -38,12 +38,22 @@ export function applyPrivacyShield(
     Math.cos(angularDistance) - Math.sin(latRad) * Math.sin(jitteredLatRad)
   );
 
-  const jitteredLat = (jitteredLatRad * 180) / Math.PI;
-  const jitteredLon = (jitteredLonRad * 180) / Math.PI;
+  let finalLat = Number(((jitteredLatRad * 180) / Math.PI).toFixed(6));
+  let finalLon = Number(((jitteredLonRad * 180) / Math.PI).toFixed(6));
+
+  // If a random bearing lands exactly along a cardinal axis, rounding to 6 decimal
+  // places can occasionally produce identical single-axis values (e.g. 0m latitude shift due East).
+  // Guarantee that both individual coordinate axes measurably differ from the raw coordinate.
+  if (finalLat === latitude) {
+    finalLat = Number((finalLat + (Math.sin(bearing) >= 0 ? 0.00001 : -0.00001)).toFixed(6));
+  }
+  if (finalLon === longitude) {
+    finalLon = Number((finalLon + (Math.cos(bearing) >= 0 ? 0.00001 : -0.00001)).toFixed(6));
+  }
 
   return {
-    latitude: Number(jitteredLat.toFixed(6)),
-    longitude: Number(jitteredLon.toFixed(6)),
+    latitude: finalLat,
+    longitude: finalLon,
     offsetMeters: Math.round(distance),
   };
 }

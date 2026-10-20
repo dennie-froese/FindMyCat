@@ -14,7 +14,7 @@ describe('Mobile: Dual-Zone Privacy Shield Engine', () => {
     const minRadius = 150;
     const maxRadius = 250;
 
-    for (let i = 0; i < 20; i++) {
+    for (let i = 0; i < 50; i++) {
       const result = applyPrivacyShield(homeLat, homeLon, minRadius, maxRadius);
 
       assert.ok(result.offsetMeters >= minRadius, `Offset ${result.offsetMeters}m is less than min ${minRadius}m`);
@@ -28,7 +28,7 @@ describe('Mobile: Dual-Zone Privacy Shield Engine', () => {
   });
 
   test('applyPrivacyShield defaults to 100m–200m annular bounds', () => {
-    for (let i = 0; i < 30; i++) {
+    for (let i = 0; i < 50; i++) {
       const result = applyPrivacyShield(homeLat, homeLon); // uses default 100m and 200m
       assert.ok(result.offsetMeters >= 100, `Default offset ${result.offsetMeters}m is less than 100m`);
       assert.ok(result.offsetMeters <= 200, `Default offset ${result.offsetMeters}m exceeds 200m`);
