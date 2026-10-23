@@ -19,6 +19,9 @@
       "bundleIdentifier": "com.findmycat.app",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": false
+        },
         "NSCameraUsageDescription": "Find My Cat needs camera access to take quick photos of sighted lost cats.",
         "NSPhotoLibraryUsageDescription": "Find My Cat needs photo library access to upload photos and read geotag location metadata.",
         "NSLocationWhenInUseUsageDescription": "Find My Cat needs location access to plot approximate sighting locations on the neighborhood map."
@@ -27,15 +30,21 @@
         "NSPrivacyAccessedAPITypes": [
           {
             "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryUserDefaults",
-            "NSPrivacyAccessedAPITypeReasons": ["CA92.1"]
+            "NSPrivacyAccessedAPITypeReasons": [
+              "CA92.1"
+            ]
           },
           {
             "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryFileTimestamp",
-            "NSPrivacyAccessedAPITypeReasons": ["DDA9.1"]
+            "NSPrivacyAccessedAPITypeReasons": [
+              "DDA9.1"
+            ]
           },
           {
             "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategorySystemBootTime",
-            "NSPrivacyAccessedAPITypeReasons": ["35F9.1"]
+            "NSPrivacyAccessedAPITypeReasons": [
+              "35F9.1"
+            ]
           }
         ]
       }
@@ -78,7 +87,8 @@
           "photosPermission": "Find My Cat needs photo library access to upload photos and read geotag location metadata.",
           "cameraPermission": "Find My Cat needs camera access to take quick photos of sighted lost cats."
         }
-      ]
+      ],
+      "expo-secure-store"
     ]
   }
 }
