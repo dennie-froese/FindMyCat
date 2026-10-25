@@ -32,12 +32,14 @@ import { PetPassportScreen } from './src/screens/PetPassportScreen';
 import { PosterPreviewScreen } from './src/screens/PosterPreviewScreen';
 import { OnboardingScreen } from './src/screens/OnboardingScreen';
 import { GuardianPaywallModal } from './src/components/GuardianPaywallModal';
+import { AddPetModal } from './src/components/AddPetModal';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<MainTab>('feed');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [paywallVisible, setPaywallVisible] = useState(false);
+  const [addPetModalVisible, setAddPetModalVisible] = useState(false);
 
   const [guardianStatus, setGuardianStatus] = useState<GuardianSubscriptionStatus>({
     isActive: false,
@@ -232,26 +234,66 @@ export default function App() {
             />
           )}
 
-          {activeTab === 'passport' && activeCat && (
-            <PetPassportScreen
-              cat={activeCat}
-              cats={cats}
-              selectedCatId={activeCat.id}
-              onSelectCat={setSelectedCatId}
-              onAddCat={handleAddCat}
-              guardianStatus={guardianStatus}
-              onUpdateCat={handleUpdateCat}
-              onGeneratePoster={() => setActiveTab('poster')}
-              onOpenPaywall={() => setPaywallVisible(true)}
-            />
+          {activeTab === 'passport' && (
+            activeCat ? (
+              <PetPassportScreen
+                cat={activeCat}
+                cats={cats}
+                selectedCatId={activeCat.id}
+                onSelectCat={setSelectedCatId}
+                onAddCat={handleAddCat}
+                guardianStatus={guardianStatus}
+                onUpdateCat={handleUpdateCat}
+                onGeneratePoster={() => setActiveTab('poster')}
+                onOpenPaywall={() => setPaywallVisible(true)}
+              />
+            ) : (
+              <View style={styles.emptyContainer}>
+                <View style={styles.emptyIconCircle}>
+                  <Ionicons name="paw" size={44} color={Colors.primary} />
+                </View>
+                <Text style={styles.emptyTitle}>No Pet Registered Yet</Text>
+                <Text style={styles.emptySubtitle}>
+                  Looking out for neighborhood felines? You can also register your own pet anytime to unlock their Digital Health Passport, ISO Microchip vault, and emergency Amber Alert kit.
+                </Text>
+                <TouchableOpacity
+                  style={styles.emptyPrimaryButton}
+                  onPress={() => setAddPetModalVisible(true)}
+                  activeOpacity={0.85}
+                >
+                  <Ionicons name="add-circle" size={20} color="#ffffff" style={{ marginRight: 8 }} />
+                  <Text style={styles.emptyPrimaryButtonText}>Register Cat Passport</Text>
+                </TouchableOpacity>
+              </View>
+            )
           )}
 
-          {activeTab === 'poster' && activeCat && (
-            <PosterPreviewScreen
-              cat={activeCat}
-              cats={cats}
-              onSelectCat={setSelectedCatId}
-            />
+          {activeTab === 'poster' && (
+            activeCat ? (
+              <PosterPreviewScreen
+                cat={activeCat}
+                cats={cats}
+                onSelectCat={setSelectedCatId}
+              />
+            ) : (
+              <View style={styles.emptyContainer}>
+                <View style={[styles.emptyIconCircle, { backgroundColor: '#fee2e2', borderColor: '#fecaca' }]}>
+                  <Ionicons name="document-text" size={44} color="#ef4444" />
+                </View>
+                <Text style={styles.emptyTitle}>No Missing Cat Posters</Text>
+                <Text style={styles.emptySubtitle}>
+                  Smart viral lost posters equipped with dynamic QR codes are generated when a registered cat is marked as missing in their Passport.
+                </Text>
+                <TouchableOpacity
+                  style={styles.emptyPrimaryButton}
+                  onPress={() => setAddPetModalVisible(true)}
+                  activeOpacity={0.85}
+                >
+                  <Ionicons name="add-circle" size={20} color="#ffffff" style={{ marginRight: 8 }} />
+                  <Text style={styles.emptyPrimaryButtonText}>Register a Cat First</Text>
+                </TouchableOpacity>
+              </View>
+            )
           )}
         </View>
 
@@ -261,6 +303,16 @@ export default function App() {
           onClose={() => setPaywallVisible(false)}
           onSubscriptionSuccess={(newStatus) => {
             setGuardianStatus(newStatus);
+          }}
+        />
+
+        {/* Global Add Pet Modal (Available from empty state or switcher) */}
+        <AddPetModal
+          visible={addPetModalVisible}
+          onClose={() => setAddPetModalVisible(false)}
+          onSaveCat={(newCat) => {
+            setAddPetModalVisible(false);
+            handleAddCat(newCat);
           }}
         />
 
@@ -434,5 +486,56 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: Colors.textMuted,
     marginTop: 4,
+  },
+  emptyContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 32,
+    backgroundColor: Colors.background,
+  },
+  emptyIconCircle: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    backgroundColor: '#fff1ee',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#ffded9',
+  },
+  emptyTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: Colors.textPrimary,
+    textAlign: 'center',
+    marginBottom: 10,
+    letterSpacing: -0.3,
+  },
+  emptySubtitle: {
+    fontSize: 15,
+    color: Colors.textMuted,
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 28,
+  },
+  emptyPrimaryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.primary,
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderRadius: 14,
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  emptyPrimaryButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '700',
   },
 });

@@ -12,6 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../theme/colors';
 import { SightingReport, CommunityAlert } from '../types';
 import { RadarScannerHero } from '../components/RadarScannerHero';
+import { SignalDetailModal } from '../components/SignalDetailModal';
 
 interface SightingsFeedScreenProps {
   sightings: SightingReport[];
@@ -31,6 +32,7 @@ export const SightingsFeedScreen: React.FC<SightingsFeedScreenProps> = ({
   refreshing,
 }) => {
   const [filter, setFilter] = useState<FilterType>('all');
+  const [selectedSignal, setSelectedSignal] = useState<CommunityAlert | SightingReport | null>(null);
 
   const filteredSightings = sightings.filter(() => filter === 'all' || filter === 'sightings');
   const filteredAlerts = alerts.filter((a) => {
@@ -116,10 +118,39 @@ export const SightingsFeedScreen: React.FC<SightingsFeedScreenProps> = ({
           <Text style={styles.listSectionMeta}>Real-time proximity</Text>
         </View>
 
+        {/* Empty Filter State */}
+        {filteredAlerts.length === 0 && filteredSightings.length === 0 && (
+          <View style={styles.emptyFeedCard}>
+            <View style={styles.emptyFeedIconCircle}>
+              <Ionicons name="shield-checkmark" size={32} color="#10b981" />
+            </View>
+            <Text style={styles.emptyFeedTitle}>All Clear in Your Area</Text>
+            <Text style={styles.emptyFeedSubtitle}>
+              {filter === 'alerts'
+                ? 'No active missing cat alerts reported within your 2-mile radius.'
+                : filter === 'tnr'
+                ? 'No registered community TNR colonies currently active in this zone.'
+                : 'No incidents or sightings reported nearby. Your neighbourhood is calm!'}
+            </Text>
+            <TouchableOpacity
+              style={styles.emptyFeedResetButton}
+              onPress={() => setFilter('all')}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.emptyFeedResetText}>View All Signals</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
         {/* Critical Alerts */}
         {(filter === 'all' || filter === 'alerts' || filter === 'tnr') &&
           filteredAlerts.map((item) => (
-            <View key={item.id} style={styles.card}>
+            <TouchableOpacity
+              key={item.id}
+              style={styles.card}
+              activeOpacity={0.88}
+              onPress={() => setSelectedSignal(item)}
+            >
               <View style={styles.cardTopRow}>
                 <View
                   style={[
@@ -177,13 +208,18 @@ export const SightingsFeedScreen: React.FC<SightingsFeedScreenProps> = ({
                   </View>
                 </View>
               </View>
-            </View>
+            </TouchableOpacity>
           ))}
 
         {/* Sightings */}
         {(filter === 'all' || filter === 'sightings') &&
           filteredSightings.map((item) => (
-            <View key={item.id} style={styles.card}>
+            <TouchableOpacity
+              key={item.id}
+              style={styles.card}
+              activeOpacity={0.88}
+              onPress={() => setSelectedSignal(item)}
+            >
               <View style={styles.cardTopRow}>
                 <View style={[styles.statusBadge, styles.badgeSighting]}>
                   <Text style={[styles.statusBadgeText, styles.statusBadgeTextSighting]}>
@@ -234,11 +270,22 @@ export const SightingsFeedScreen: React.FC<SightingsFeedScreenProps> = ({
                   </View>
                 </View>
               </View>
-            </View>
+            </TouchableOpacity>
           ))}
 
         <View style={styles.bottomSpacer} />
       </ScrollView>
+
+      {/* Sighting & Alert Detail Bottom Sheet Modal */}
+      <SignalDetailModal
+        visible={selectedSignal !== null}
+        signal={selectedSignal}
+        onClose={() => setSelectedSignal(null)}
+        onOpenReport={() => {
+          setSelectedSignal(null);
+          onOpenReport();
+        }}
+      />
     </View>
   );
 };
@@ -485,5 +532,48 @@ const styles = StyleSheet.create({
   },
   bottomSpacer: {
     height: 40,
+  },
+  emptyFeedCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    padding: 24,
+    alignItems: 'center',
+    marginHorizontal: 16,
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  emptyFeedIconCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#ecfdf5',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  emptyFeedTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: Colors.textPrimary,
+    marginBottom: 6,
+  },
+  emptyFeedSubtitle: {
+    fontSize: 13,
+    color: Colors.textMuted,
+    textAlign: 'center',
+    lineHeight: 18,
+    marginBottom: 16,
+  },
+  emptyFeedResetButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    backgroundColor: '#f1f5f9',
+    borderRadius: 10,
+  },
+  emptyFeedResetText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: Colors.textPrimary,
   },
 });
