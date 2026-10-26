@@ -5,6 +5,11 @@ import {
   getCatBoosterSchedules,
   scheduleLocalBoosterAlerts,
 } from '../src/services/reminderService.ts';
+import {
+  standDownCatAlerts,
+  broadcastCatMissingAlert,
+  loadCommunityAlerts,
+} from '../src/services/storage.ts';
 
 describe('Multi-Pet Management & Digital Passport Vault', () => {
   const mockCatMochi = {
@@ -108,6 +113,39 @@ describe('Multi-Pet Management & Digital Passport Vault', () => {
     const updatedCats = cats.map((c) => (c.id === updatedLuna.id ? updatedLuna : c));
     assert.strictEqual(updatedCats.find((c) => c.id === 'cat-2')?.status, 'missing');
     assert.strictEqual(updatedCats.find((c) => c.id === 'cat-1')?.status, 'safe');
+  });
+
+  test('broadcastCatMissingAlert registers an active 2-mile Amber Alert on Radar feed', async () => {
+    const missingCat = {
+      ...mockCatLuna,
+      status: 'missing',
+      missingSince: '2026-10-18T18:00:00Z',
+      homeAddressApprox: 'Victoria Park Road, Hackney',
+      homeCoords: { latitude: 51.5365, longitude: -0.039 },
+    };
+
+    const alerts = await broadcastCatMissingAlert(missingCat);
+    const lunaAlert = alerts.find(
+      (a) => a.petName?.toLowerCase() === 'luna' || a.title.toLowerCase().includes('luna')
+    );
+
+    assert.ok(lunaAlert, 'Expected an active alert for Luna');
+    assert.strictEqual(lunaAlert.status, 'critical');
+    assert.strictEqual(lunaAlert.badgeText, '2-MILE AMBER ALERT');
+    assert.ok(lunaAlert.title.includes('Luna'));
+  });
+
+  test('standDownCatAlerts updates alert status to safe and badge to SAFELY REUNITED', async () => {
+    // Luna is found safe
+    const updatedAlerts = await standDownCatAlerts('Luna');
+    const lunaAlert = updatedAlerts.find(
+      (a) => a.petName?.toLowerCase() === 'luna' || a.title.toLowerCase().includes('luna')
+    );
+
+    assert.ok(lunaAlert, 'Expected standing-down alert for Luna');
+    assert.strictEqual(lunaAlert.status, 'safe');
+    assert.strictEqual(lunaAlert.badgeText, '🎉 SAFELY REUNITED');
+    assert.ok(lunaAlert.subtitle.includes('safely reunited'));
   });
 });
 

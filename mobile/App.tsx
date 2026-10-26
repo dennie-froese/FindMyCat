@@ -20,6 +20,8 @@ import {
   loadSightings,
   saveNewSighting,
   loadCommunityAlerts,
+  standDownCatAlerts,
+  broadcastCatMissingAlert,
   getOnboardingCompleted,
   setOnboardingCompleted,
 } from './src/services/storage';
@@ -33,6 +35,7 @@ import { PosterPreviewScreen } from './src/screens/PosterPreviewScreen';
 import { OnboardingScreen } from './src/screens/OnboardingScreen';
 import { GuardianPaywallModal } from './src/components/GuardianPaywallModal';
 import { AddPetModal } from './src/components/AddPetModal';
+import { ReunitedCelebrationModal } from './src/components/ReunitedCelebrationModal';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<MainTab>('feed');
@@ -55,6 +58,7 @@ export default function App() {
   const [alerts, setAlerts] = useState<CommunityAlert[]>([]);
   const [hasOnboarded, setHasOnboarded] = useState<boolean | null>(null);
   const [reportPrefillHint, setReportPrefillHint] = useState<string | undefined>(undefined);
+  const [reunitedCat, setReunitedCat] = useState<CatProfile | null>(null);
 
   // Initial Data Load & RevenueCat initialization
   useEffect(() => {
@@ -114,14 +118,26 @@ export default function App() {
   };
 
   const handleUpdateCat = async (updatedCat: CatProfile) => {
+    const previousCat = cats.find((c) => c.id === updatedCat.id);
     const updatedCats = cats.map((c) => (c.id === updatedCat.id ? updatedCat : c));
     setCats(updatedCats);
     await saveCatProfiles(updatedCats);
 
-    // If marked missing, switch active cat to it and jump to poster tab
+    // If newly marked missing, broadcast 2-mile emergency Amber Alert, switch active cat, and jump to poster tab
     if (updatedCat.status === 'missing') {
+      const updatedAlerts = await broadcastCatMissingAlert(updatedCat);
+      if (updatedAlerts.length > 0) {
+        setAlerts(updatedAlerts);
+      }
       setSelectedCatId(updatedCat.id);
       setActiveTab('poster');
+    } else if (previousCat && previousCat.status === 'missing' && updatedCat.status === 'safe') {
+      // Reunited journey: stand down alerts and trigger celebration modal
+      const updatedAlerts = await standDownCatAlerts(updatedCat.name);
+      if (updatedAlerts.length > 0) {
+        setAlerts(updatedAlerts);
+      }
+      setReunitedCat(updatedCat);
     }
   };
 
@@ -325,6 +341,13 @@ export default function App() {
             setAddPetModalVisible(false);
             handleAddCat(newCat);
           }}
+        />
+
+        {/* Celebratory Reunited & Stand-Down Modal */}
+        <ReunitedCelebrationModal
+          visible={reunitedCat !== null}
+          cat={reunitedCat}
+          onClose={() => setReunitedCat(null)}
         />
 
 

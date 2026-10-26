@@ -1,5 +1,34 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { CatProfile, SightingReport, CommunityAlert } from '../types';
+import type { CatProfile, SightingReport, CommunityAlert } from '../types/index.ts';
+
+// Resilient Storage Wrapper (supports React Native native bridge, ESM .default, and memory fallback)
+const getAsyncStorage = () => {
+  // If running in headless Node.js test environment without React Native bridge or browser window
+  if (typeof window === 'undefined' && typeof (globalThis as any).nativeCallSyncHook === 'undefined') {
+    const memoryStore = new Map<string, string>();
+    return {
+      getItem: async (key: string) => memoryStore.get(key) ?? null,
+      setItem: async (key: string, value: string) => { memoryStore.set(key, value); },
+      removeItem: async (key: string) => { memoryStore.delete(key); },
+      clear: async () => { memoryStore.clear(); },
+    };
+  }
+  if (AsyncStorage && typeof (AsyncStorage as any).getItem === 'function') {
+    return AsyncStorage;
+  }
+  if ((AsyncStorage as any)?.default && typeof (AsyncStorage as any).default.getItem === 'function') {
+    return (AsyncStorage as any).default;
+  }
+  const memoryStore = new Map<string, string>();
+  return {
+    getItem: async (key: string) => memoryStore.get(key) ?? null,
+    setItem: async (key: string, value: string) => { memoryStore.set(key, value); },
+    removeItem: async (key: string) => { memoryStore.delete(key); },
+    clear: async () => { memoryStore.clear(); },
+  };
+};
+
+const storage = getAsyncStorage();
 
 const STORAGE_KEYS = {
   CATS: '@fmc_cats_v1',
@@ -182,9 +211,9 @@ const SEED_ALERTS: CommunityAlert[] = [
 
 export async function loadCatProfiles(): Promise<CatProfile[]> {
   try {
-    const raw = await AsyncStorage.getItem(STORAGE_KEYS.CATS);
+    const raw = await storage.getItem(STORAGE_KEYS.CATS);
     if (!raw) {
-      await AsyncStorage.setItem(STORAGE_KEYS.CATS, JSON.stringify(SEED_CATS));
+      await storage.setItem(STORAGE_KEYS.CATS, JSON.stringify(SEED_CATS));
       return SEED_CATS;
     }
     return JSON.parse(raw);
@@ -196,7 +225,7 @@ export async function loadCatProfiles(): Promise<CatProfile[]> {
 
 export async function saveCatProfiles(cats: CatProfile[]): Promise<void> {
   try {
-    await AsyncStorage.setItem(STORAGE_KEYS.CATS, JSON.stringify(cats));
+    await storage.setItem(STORAGE_KEYS.CATS, JSON.stringify(cats));
   } catch (error) {
     console.error('Failed to save cats:', error);
   }
@@ -228,9 +257,9 @@ export async function deleteCatProfile(catId: string): Promise<CatProfile[]> {
 
 export async function loadSightings(): Promise<SightingReport[]> {
   try {
-    const raw = await AsyncStorage.getItem(STORAGE_KEYS.SIGHTINGS);
+    const raw = await storage.getItem(STORAGE_KEYS.SIGHTINGS);
     if (!raw) {
-      await AsyncStorage.setItem(STORAGE_KEYS.SIGHTINGS, JSON.stringify(SEED_SIGHTINGS));
+      await storage.setItem(STORAGE_KEYS.SIGHTINGS, JSON.stringify(SEED_SIGHTINGS));
       return SEED_SIGHTINGS;
     }
     return JSON.parse(raw);
@@ -244,7 +273,7 @@ export async function saveNewSighting(report: SightingReport): Promise<SightingR
   try {
     const current = await loadSightings();
     const updated = [report, ...current];
-    await AsyncStorage.setItem(STORAGE_KEYS.SIGHTINGS, JSON.stringify(updated));
+    await storage.setItem(STORAGE_KEYS.SIGHTINGS, JSON.stringify(updated));
     return updated;
   } catch (error) {
     console.error('Failed to save sighting:', error);
@@ -254,9 +283,9 @@ export async function saveNewSighting(report: SightingReport): Promise<SightingR
 
 export async function loadCommunityAlerts(): Promise<CommunityAlert[]> {
   try {
-    const raw = await AsyncStorage.getItem(STORAGE_KEYS.ALERTS);
+    const raw = await storage.getItem(STORAGE_KEYS.ALERTS);
     if (!raw) {
-      await AsyncStorage.setItem(STORAGE_KEYS.ALERTS, JSON.stringify(SEED_ALERTS));
+      await storage.setItem(STORAGE_KEYS.ALERTS, JSON.stringify(SEED_ALERTS));
       return SEED_ALERTS;
     }
     return JSON.parse(raw);
@@ -266,9 +295,87 @@ export async function loadCommunityAlerts(): Promise<CommunityAlert[]> {
   }
 }
 
+export async function saveCommunityAlerts(alerts: CommunityAlert[]): Promise<void> {
+  try {
+    await storage.setItem(STORAGE_KEYS.ALERTS, JSON.stringify(alerts));
+  } catch (error) {
+    console.error('Failed to save alerts:', error);
+  }
+}
+
+/**
+ * Stands down community alerts for a safely reunited cat.
+ * Updates the alert status to 'safe' and modifies the badge to '🎉 SAFELY REUNITED'.
+ */
+export async function standDownCatAlerts(catName: string): Promise<CommunityAlert[]> {
+  try {
+    const alerts = await loadCommunityAlerts();
+    const updated = alerts.map((a) => {
+      if (
+        (a.petName && a.petName.toLowerCase() === catName.toLowerCase()) ||
+        a.title.toLowerCase().includes(catName.toLowerCase())
+      ) {
+        return {
+          ...a,
+          status: 'safe' as const,
+          badgeText: '🎉 SAFELY REUNITED',
+          subtitle: `${catName} has been safely reunited with their guardian! Local search has stood down.`,
+        };
+      }
+      return a;
+    });
+    await saveCommunityAlerts(updated);
+    return updated;
+  } catch (error) {
+    console.error('Failed to stand down cat alerts:', error);
+    return [];
+  }
+}
+
+/**
+ * Broadcasts an active 2-mile emergency Amber Alert for a newly missing cat.
+ */
+export async function broadcastCatMissingAlert(cat: CatProfile): Promise<CommunityAlert[]> {
+  try {
+    const alerts = await loadCommunityAlerts();
+    const existingIdx = alerts.findIndex(
+      (a) =>
+        (a.petName && a.petName.toLowerCase() === cat.name.toLowerCase()) ||
+        a.title.toLowerCase().includes(cat.name.toLowerCase())
+    );
+
+    const newAlert: CommunityAlert = {
+      id: `alert-${Date.now()}`,
+      type: 'missing_alert',
+      title: `Missing: ${cat.name} (${cat.breed})`,
+      subtitle: `Recently reported missing near ${cat.homeAddressApprox || 'local neighbourhood'}. ${cat.distinctiveFeatures || 'Keep an eye out!'}`,
+      petName: cat.name,
+      timeAgo: 'Just now',
+      distanceMiles: 0.2,
+      photoUrl: cat.photoUrl,
+      status: 'critical',
+      coords: cat.homeCoords || { latitude: 51.5362, longitude: -0.0385 },
+      badgeText: '2-MILE AMBER ALERT',
+    };
+
+    let updated: CommunityAlert[];
+    if (existingIdx !== -1) {
+      updated = [...alerts];
+      updated[existingIdx] = newAlert;
+    } else {
+      updated = [newAlert, ...alerts];
+    }
+    await saveCommunityAlerts(updated);
+    return updated;
+  } catch (error) {
+    console.error('Failed to broadcast cat missing alert:', error);
+    return [];
+  }
+}
+
 export async function getOnboardingCompleted(): Promise<boolean> {
   try {
-    const val = await AsyncStorage.getItem(STORAGE_KEYS.ONBOARDING);
+    const val = await storage.getItem(STORAGE_KEYS.ONBOARDING);
     return val === 'true';
   } catch {
     return false;
@@ -277,7 +384,7 @@ export async function getOnboardingCompleted(): Promise<boolean> {
 
 export async function setOnboardingCompleted(): Promise<void> {
   try {
-    await AsyncStorage.setItem(STORAGE_KEYS.ONBOARDING, 'true');
+    await storage.setItem(STORAGE_KEYS.ONBOARDING, 'true');
   } catch (error) {
     console.error('Failed to persist onboarding completion:', error);
   }
@@ -285,7 +392,7 @@ export async function setOnboardingCompleted(): Promise<void> {
 
 export async function resetOnboardingState(): Promise<void> {
   try {
-    await AsyncStorage.removeItem(STORAGE_KEYS.ONBOARDING);
+    await storage.removeItem(STORAGE_KEYS.ONBOARDING);
   } catch (error) {
     console.error('Failed to reset onboarding state:', error);
   }
