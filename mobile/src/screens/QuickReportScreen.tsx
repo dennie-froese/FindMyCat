@@ -21,6 +21,7 @@ import { applyPrivacyShield } from '../services/privacyEngine';
 interface QuickReportScreenProps {
   onSubmitSighting: (report: SightingReport) => void;
   onCancel: () => void;
+  initialCatHint?: string;
 }
 
 const COAT_PRESETS = ['Ginger / Orange', 'Tuxedo (B&W)', 'Tabby (Striped)', 'All Black', 'Calico / Tortie', 'White / Grey'];
@@ -29,6 +30,7 @@ const BEHAVIOUR_PRESETS = ['Resting / Healthy', 'Hiding / Timid', 'Vocal / Hungr
 export const QuickReportScreen: React.FC<QuickReportScreenProps> = ({
   onSubmitSighting,
   onCancel,
+  initialCatHint,
 }) => {
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [loadingMedia, setLoadingMedia] = useState(false);
@@ -134,6 +136,7 @@ export const QuickReportScreen: React.FC<QuickReportScreenProps> = ({
 
     const newReport: SightingReport = {
       id: `sighting-${Date.now()}`,
+      catNameHint: initialCatHint || undefined,
       photoUri,
       timestamp: new Date().toISOString(),
       reportedAtDisplay: 'Just now',
@@ -159,6 +162,19 @@ export const QuickReportScreen: React.FC<QuickReportScreenProps> = ({
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      {/* Active Alert Matching Banner */}
+      {initialCatHint && (
+        <View style={styles.matchingBanner}>
+          <Ionicons name="link" size={18} color="#0284c7" />
+          <View style={styles.matchingTextContainer}>
+            <Text style={styles.matchingTitle}>LINKED TO ACTIVE ALERT</Text>
+            <Text style={styles.matchingDesc}>
+              Reporting potential match for: <Text style={styles.matchingCatName}>{initialCatHint}</Text>
+            </Text>
+          </View>
+        </View>
+      )}
+
       {/* Zero Auth Trust Callout */}
       <View style={styles.anonBanner}>
         <Ionicons name="flash" size={20} color="#b45309" />
@@ -346,6 +362,35 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 16,
+  },
+  matchingBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f0f9ff',
+    borderWidth: 1,
+    borderColor: '#bae6fd',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 14,
+    gap: 8,
+  },
+  matchingTextContainer: {
+    flex: 1,
+  },
+  matchingTitle: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#0369a1',
+    letterSpacing: 0.8,
+    marginBottom: 2,
+  },
+  matchingDesc: {
+    fontSize: 13,
+    color: '#0c4a6e',
+  },
+  matchingCatName: {
+    fontWeight: '800',
+    color: '#0284c7',
   },
   anonBanner: {
     flexDirection: 'row',

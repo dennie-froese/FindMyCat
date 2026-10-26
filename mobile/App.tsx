@@ -54,6 +54,7 @@ export default function App() {
   const [sightings, setSightings] = useState<SightingReport[]>([]);
   const [alerts, setAlerts] = useState<CommunityAlert[]>([]);
   const [hasOnboarded, setHasOnboarded] = useState<boolean | null>(null);
+  const [reportPrefillHint, setReportPrefillHint] = useState<string | undefined>(undefined);
 
   // Initial Data Load & RevenueCat initialization
   useEffect(() => {
@@ -221,7 +222,10 @@ export default function App() {
             <SightingsFeedScreen
               sightings={sightings}
               alerts={alerts}
-              onOpenReport={() => setActiveTab('report')}
+              onOpenReport={(hint) => {
+                setReportPrefillHint(hint);
+                setActiveTab('report');
+              }}
               onRefresh={handleRefresh}
               refreshing={refreshing}
             />
@@ -229,8 +233,15 @@ export default function App() {
 
           {activeTab === 'report' && (
             <QuickReportScreen
-              onSubmitSighting={handleNewSighting}
-              onCancel={() => setActiveTab('feed')}
+              initialCatHint={reportPrefillHint}
+              onSubmitSighting={(report) => {
+                setReportPrefillHint(undefined);
+                handleNewSighting(report);
+              }}
+              onCancel={() => {
+                setReportPrefillHint(undefined);
+                setActiveTab('feed');
+              }}
             />
           )}
 

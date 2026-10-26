@@ -33,6 +33,9 @@ fi
 DEVICE_NAME=$(echo "$BOOTED_INFO" | sed -E 's/^[[:space:]]*//; s/\([A-F0-9-]+\)//; s/\(Booted\)//' | xargs)
 DEVICE_UDID=$(echo "$BOOTED_INFO" | grep -o -E "[A-F0-9]{8}-[A-F0-9]{4}-[A-F0-9]{4}-[A-F0-9]{4}-[A-F0-9]{12}")
 
+# Wait for WindowServer & framebuffer services to be fully active
+xcrun simctl bootstatus "$DEVICE_UDID" -b > /dev/null 2>&1 || true
+
 echo "✔ Booted Device Detected: $DEVICE_NAME ($DEVICE_UDID)"
 
 # 3. Test framebuffer capture

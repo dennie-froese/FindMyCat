@@ -17,7 +17,7 @@ import { SignalDetailModal } from '../components/SignalDetailModal';
 interface SightingsFeedScreenProps {
   sightings: SightingReport[];
   alerts: CommunityAlert[];
-  onOpenReport: () => void;
+  onOpenReport: (hint?: string) => void;
   onRefresh: () => void;
   refreshing: boolean;
 }
@@ -281,9 +281,9 @@ export const SightingsFeedScreen: React.FC<SightingsFeedScreenProps> = ({
         visible={selectedSignal !== null}
         signal={selectedSignal}
         onClose={() => setSelectedSignal(null)}
-        onOpenReport={() => {
+        onOpenReport={(hint) => {
           setSelectedSignal(null);
-          onOpenReport();
+          onOpenReport(hint);
         }}
       />
     </View>
