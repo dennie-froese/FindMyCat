@@ -15,6 +15,7 @@ import { CatProfile, GuardianSubscriptionStatus } from '../types';
 import { AmberAlertCheckoutModal } from '../components/AmberAlertCheckoutModal';
 import { PetSelectorBar } from '../components/PetSelectorBar';
 import { AddPetModal } from '../components/AddPetModal';
+import { EditPetModal } from '../components/EditPetModal';
 import { scheduleLocalBoosterAlerts } from '../services/reminderService';
 
 interface PetPassportScreenProps {
@@ -25,6 +26,7 @@ interface PetPassportScreenProps {
   onAddCat: (newCat: CatProfile) => void;
   guardianStatus: GuardianSubscriptionStatus;
   onUpdateCat: (updated: CatProfile) => void;
+  onDeleteCat?: (catId: string) => void;
   onGeneratePoster: () => void;
   onOpenPaywall: () => void;
 }
@@ -37,12 +39,14 @@ export const PetPassportScreen: React.FC<PetPassportScreenProps> = ({
   onAddCat,
   guardianStatus,
   onUpdateCat,
+  onDeleteCat,
   onGeneratePoster,
   onOpenPaywall,
 }) => {
   const [copiedChip, setCopiedChip] = useState(false);
   const [amberModalVisible, setAmberModalVisible] = useState(false);
   const [addPetModalVisible, setAddPetModalVisible] = useState(false);
+  const [editPetModalVisible, setEditPetModalVisible] = useState(false);
 
   const isMissing = cat.status === 'missing';
   const isGuardianActive = guardianStatus.isActive;
@@ -241,20 +245,30 @@ export const PetPassportScreen: React.FC<PetPassportScreenProps> = ({
           <View style={styles.heroInfo}>
             <View style={styles.nameRow}>
               <Text style={styles.petName}>{cat.name}</Text>
-              <View
-                style={[
-                  styles.statusBadge,
-                  isMissing ? styles.statusBadgeMissing : styles.statusBadgeSafe,
-                ]}
-              >
-                <Text
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <View
                   style={[
-                    styles.statusBadgeText,
-                    isMissing ? styles.statusBadgeTextMissing : styles.statusBadgeTextSafe,
+                    styles.statusBadge,
+                    isMissing ? styles.statusBadgeMissing : styles.statusBadgeSafe,
                   ]}
                 >
-                  {isMissing ? 'MISSING' : 'SAFE'}
-                </Text>
+                  <Text
+                    style={[
+                      styles.statusBadgeText,
+                      isMissing ? styles.statusBadgeTextMissing : styles.statusBadgeTextSafe,
+                    ]}
+                  >
+                    {isMissing ? 'MISSING' : 'SAFE'}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.editIconBtn}
+                  onPress={() => setEditPetModalVisible(true)}
+                  activeOpacity={0.7}
+                  accessibilityLabel={`Edit ${cat.name} Profile`}
+                >
+                  <Ionicons name="pencil" size={13} color={Colors.primary} />
+                </TouchableOpacity>
               </View>
             </View>
             <Text style={styles.breedText}>{cat.breed}</Text>
@@ -272,6 +286,24 @@ export const PetPassportScreen: React.FC<PetPassportScreenProps> = ({
           <Text style={styles.sectionHeading}>Distinctive Physical Identifiers</Text>
           <Text style={styles.featuresText}>"{cat.distinctiveFeatures}"</Text>
         </View>
+
+        {/* Medical & Dietary Notes */}
+        {Boolean(cat.medicalNotes) && (
+          <View style={[styles.infoSection, { marginTop: 12 }]}>
+            <Text style={styles.sectionHeading}>Medical & Dietary Notes</Text>
+            <Text style={styles.medicalNotesText}>{cat.medicalNotes}</Text>
+          </View>
+        )}
+
+        {/* Edit Passport Details Button */}
+        <TouchableOpacity
+          style={styles.editPassportBtn}
+          onPress={() => setEditPetModalVisible(true)}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="create-outline" size={15} color={Colors.primary} />
+          <Text style={styles.editPassportBtnText}>Edit Passport Details & Medical Notes</Text>
+        </TouchableOpacity>
       </View>
 
       {/* 4. Microchip Vault Card */}
@@ -401,6 +433,15 @@ export const PetPassportScreen: React.FC<PetPassportScreenProps> = ({
         visible={addPetModalVisible}
         onClose={() => setAddPetModalVisible(false)}
         onSaveCat={onAddCat}
+      />
+
+      {/* Modal for Editing Existing Pet Passport Details & Deleting */}
+      <EditPetModal
+        visible={editPetModalVisible}
+        cat={cat}
+        onClose={() => setEditPetModalVisible(false)}
+        onSaveCat={onUpdateCat}
+        onDeleteCat={onDeleteCat}
       />
     </ScrollView>
 
@@ -616,6 +657,13 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '800',
   },
+  editIconBtn: {
+    padding: 5,
+    borderRadius: 8,
+    backgroundColor: '#fff7ed',
+    borderWidth: 1,
+    borderColor: '#fed7aa',
+  },
   breedText: {
     fontSize: 14,
     fontWeight: '600',
@@ -652,6 +700,29 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
     marginTop: 4,
     lineHeight: 18,
+  },
+  medicalNotesText: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    marginTop: 4,
+    lineHeight: 18,
+  },
+  editPassportBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: 14,
+    paddingVertical: 9,
+    borderRadius: 10,
+    backgroundColor: '#fff7ed',
+    borderWidth: 1,
+    borderColor: '#fed7aa',
+  },
+  editPassportBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.primary,
   },
   card: {
     backgroundColor: Colors.surface,

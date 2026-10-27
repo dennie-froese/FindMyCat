@@ -17,6 +17,7 @@ import {
   loadCatProfiles,
   saveCatProfiles,
   addCatProfile,
+  deleteCatProfile,
   loadSightings,
   saveNewSighting,
   loadCommunityAlerts,
@@ -147,6 +148,21 @@ export default function App() {
     setSelectedCatId(newCat.id);
   };
 
+  const handleDeleteCat = async (catId: string) => {
+    const catToDelete = cats.find((c) => c.id === catId);
+    if (catToDelete && catToDelete.status === 'missing') {
+      const updatedAlerts = await standDownCatAlerts(catToDelete.name);
+      if (updatedAlerts.length > 0) {
+        setAlerts(updatedAlerts);
+      }
+    }
+    const updatedCats = await deleteCatProfile(catId);
+    setCats(updatedCats);
+    if (selectedCatId === catId) {
+      setSelectedCatId(updatedCats.length > 0 ? updatedCats[0].id : '');
+    }
+  };
+
   const handleOnboardingComplete = async ({
     createdCat,
     role,
@@ -271,6 +287,7 @@ export default function App() {
                 onAddCat={handleAddCat}
                 guardianStatus={guardianStatus}
                 onUpdateCat={handleUpdateCat}
+                onDeleteCat={handleDeleteCat}
                 onGeneratePoster={() => setActiveTab('poster')}
                 onOpenPaywall={() => setPaywallVisible(true)}
               />

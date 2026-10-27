@@ -9,6 +9,10 @@ import {
   standDownCatAlerts,
   broadcastCatMissingAlert,
   loadCommunityAlerts,
+  addCatProfile,
+  deleteCatProfile,
+  loadCatProfiles,
+  saveCatProfiles,
 } from '../src/services/storage.ts';
 
 describe('Multi-Pet Management & Digital Passport Vault', () => {
@@ -146,6 +150,79 @@ describe('Multi-Pet Management & Digital Passport Vault', () => {
     assert.strictEqual(lunaAlert.status, 'safe');
     assert.strictEqual(lunaAlert.badgeText, '🎉 SAFELY REUNITED');
     assert.ok(lunaAlert.subtitle.includes('safely reunited'));
+  });
+
+  test('Editing cat passport updates medical notes, emergency contact, and diet', async () => {
+    const originalCat = { ...mockCatMochi };
+    const editedCat = {
+      ...originalCat,
+      name: 'Mochi Senior',
+      emergencyPhone: '+44 7700 900999',
+      medicalNotes: 'Senior joint supplements twice daily with wet food. Sensitive stomach.',
+      distinctiveFeatures: 'Nick on left ear tip, green eyes, wears reflective orange collar',
+    };
+
+    const initialCats = [originalCat, mockCatLuna];
+    await saveCatProfiles(initialCats);
+
+    // Apply update
+    const updatedCats = initialCats.map((c) => (c.id === editedCat.id ? editedCat : c));
+    await saveCatProfiles(updatedCats);
+
+    const savedCats = await loadCatProfiles();
+    const fetchedMochi = savedCats.find((c) => c.id === 'cat-1');
+
+    assert.ok(fetchedMochi);
+    assert.strictEqual(fetchedMochi.name, 'Mochi Senior');
+    assert.strictEqual(fetchedMochi.emergencyPhone, '+44 7700 900999');
+    assert.strictEqual(
+      fetchedMochi.medicalNotes,
+      'Senior joint supplements twice daily with wet food. Sensitive stomach.'
+    );
+    assert.ok(fetchedMochi.distinctiveFeatures.includes('orange collar'));
+  });
+
+  test('Deleting a cat removes profile from vault and stands down any active Amber Alerts', async () => {
+    const catToDelete = {
+      id: 'cat-temp-99',
+      name: 'Barnaby',
+      breed: 'Maine Coon',
+      gender: 'Male',
+      isNeutered: true,
+      ageYears: 4,
+      coatColour: 'Silver Tabby',
+      distinctiveFeatures: 'Tufted ears and bushy tail',
+      microchipNumber: '985141005555555',
+      photoUrl: 'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba',
+      status: 'missing',
+      emergencyPhone: '+44 7700 900888',
+      vaccinations: [],
+    };
+
+    // 1. Add Barnaby and broadcast an Amber Alert
+    await addCatProfile(catToDelete);
+    await broadcastCatMissingAlert(catToDelete);
+
+    let alerts = await loadCommunityAlerts();
+    let barnabyAlert = alerts.find((a) => a.petName === 'Barnaby');
+    assert.ok(barnabyAlert, 'Barnaby alert should be registered on radar');
+    assert.strictEqual(barnabyAlert.status, 'critical');
+
+    // 2. Delete Barnaby: simulates App.tsx handleDeleteCat logic
+    if (catToDelete.status === 'missing') {
+      await standDownCatAlerts(catToDelete.name);
+    }
+    const remainingCats = await deleteCatProfile(catToDelete.id);
+
+    // Verify removed from cats list
+    assert.strictEqual(remainingCats.some((c) => c.id === 'cat-temp-99'), false);
+
+    // Verify alerts stood down
+    const refreshedAlerts = await loadCommunityAlerts();
+    barnabyAlert = refreshedAlerts.find((a) => a.petName === 'Barnaby');
+    assert.ok(barnabyAlert);
+    assert.strictEqual(barnabyAlert.status, 'safe');
+    assert.strictEqual(barnabyAlert.badgeText, '🎉 SAFELY REUNITED');
   });
 });
 
