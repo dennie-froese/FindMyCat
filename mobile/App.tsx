@@ -37,6 +37,8 @@ import { OnboardingScreen } from './src/screens/OnboardingScreen';
 import { GuardianPaywallModal } from './src/components/GuardianPaywallModal';
 import { AddPetModal } from './src/components/AddPetModal';
 import { ReunitedCelebrationModal } from './src/components/ReunitedCelebrationModal';
+import { RateAppModal } from './src/components/RateAppModal';
+import { ratingService, RatingTriggerReason } from './src/services/ratingService';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<MainTab>('feed');
@@ -44,6 +46,9 @@ export default function App() {
   const [refreshing, setRefreshing] = useState(false);
   const [paywallVisible, setPaywallVisible] = useState(false);
   const [addPetModalVisible, setAddPetModalVisible] = useState(false);
+  const [rateModalVisible, setRateModalVisible] = useState(false);
+  const [ratingTriggerReason, setRatingTriggerReason] = useState<RatingTriggerReason>('manual');
+  const [rateModalPetName, setRateModalPetName] = useState<string | undefined>(undefined);
 
   const [guardianStatus, setGuardianStatus] = useState<GuardianSubscriptionStatus>({
     isActive: false,
@@ -114,7 +119,19 @@ export default function App() {
     setActiveTab('feed');
     Alert.alert(
       '🎉 Sighting Broadcasted!',
-      'Thank you! Your anonymous sighting has been logged with the 200m Privacy Shield and added to the neighbourhood radar.'
+      'Thank you! Your anonymous sighting has been logged with the 200m Privacy Shield and added to the neighbourhood radar.',
+      [
+        {
+          text: 'OK',
+          onPress: async () => {
+            const check = await ratingService.recordSignificantEvent('sighting_reported');
+            if (check.shouldPrompt) {
+              setRatingTriggerReason('sighting_reported');
+              setRateModalVisible(true);
+            }
+          },
+        },
+      ]
     );
   };
 
@@ -290,6 +307,11 @@ export default function App() {
                 onDeleteCat={handleDeleteCat}
                 onGeneratePoster={() => setActiveTab('poster')}
                 onOpenPaywall={() => setPaywallVisible(true)}
+                onOpenRateApp={() => {
+                  setRatingTriggerReason('manual');
+                  setRateModalPetName(activeCat?.name);
+                  setRateModalVisible(true);
+                }}
               />
             ) : (
               <View style={styles.emptyContainer}>
@@ -318,6 +340,14 @@ export default function App() {
                 cat={activeCat}
                 cats={cats}
                 onSelectCat={setSelectedCatId}
+                onPosterExported={async () => {
+                  const check = await ratingService.recordSignificantEvent('poster_generated');
+                  if (check.shouldPrompt) {
+                    setRatingTriggerReason('poster_generated');
+                    setRateModalPetName(activeCat?.name);
+                    setRateModalVisible(true);
+                  }
+                }}
               />
             ) : (
               <View style={styles.emptyContainer}>
@@ -364,7 +394,33 @@ export default function App() {
         <ReunitedCelebrationModal
           visible={reunitedCat !== null}
           cat={reunitedCat}
-          onClose={() => setReunitedCat(null)}
+          onRateApp={() => {
+            const petName = reunitedCat?.name;
+            setReunitedCat(null);
+            setRatingTriggerReason('reunited');
+            setRateModalPetName(petName);
+            setRateModalVisible(true);
+          }}
+          onClose={async () => {
+            const petName = reunitedCat?.name;
+            setReunitedCat(null);
+            const check = await ratingService.recordSignificantEvent('reunited');
+            if (check.shouldPrompt) {
+              setTimeout(() => {
+                setRatingTriggerReason('reunited');
+                setRateModalPetName(petName);
+                setRateModalVisible(true);
+              }, 400);
+            }
+          }}
+        />
+
+        {/* In-App App Store / Google Play Rating Flow Modal */}
+        <RateAppModal
+          visible={rateModalVisible}
+          triggerReason={ratingTriggerReason}
+          petName={rateModalPetName}
+          onClose={() => setRateModalVisible(false)}
         />
 
 

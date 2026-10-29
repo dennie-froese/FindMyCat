@@ -16,12 +16,14 @@ export interface ReunitedCelebrationModalProps {
   visible: boolean;
   cat: CatProfile | null;
   onClose: () => void;
+  onRateApp?: () => void;
 }
 
 export const ReunitedCelebrationModal: React.FC<ReunitedCelebrationModalProps> = ({
   visible,
   cat,
   onClose,
+  onRateApp,
 }) => {
   if (!cat) return null;
 
@@ -100,6 +102,18 @@ export const ReunitedCelebrationModal: React.FC<ReunitedCelebrationModalProps> =
                 Thank you to all local spotters, neighbours, and lookouts who kept an eye out.
               </Text>
             </View>
+
+            {/* Rate App Action */}
+            {onRateApp && (
+              <TouchableOpacity
+                style={styles.rateButton}
+                onPress={onRateApp}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="star" size={16} color="#ffffff" />
+                <Text style={styles.rateButtonText}>Rate & Support Local Spotters</Text>
+              </TouchableOpacity>
+            )}
 
             {/* Close Button */}
             <TouchableOpacity
@@ -275,6 +289,27 @@ const styles = StyleSheet.create({
     color: '#9f1239',
     lineHeight: 16,
     fontWeight: '500',
+  },
+  rateButton: {
+    width: '100%',
+    backgroundColor: '#f59e0b',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 13,
+    borderRadius: 14,
+    gap: 8,
+    marginBottom: 10,
+    shadowColor: '#f59e0b',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  rateButtonText: {
+    color: '#ffffff',
+    fontSize: 15,
+    fontWeight: '800',
   },
   closeButton: {
     width: '100%',

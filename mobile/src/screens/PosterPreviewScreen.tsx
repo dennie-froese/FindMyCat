@@ -18,12 +18,14 @@ interface PosterPreviewScreenProps {
   cat: CatProfile;
   cats?: CatProfile[];
   onSelectCat?: (catId: string) => void;
+  onPosterExported?: () => void;
 }
 
 export const PosterPreviewScreen: React.FC<PosterPreviewScreenProps> = ({
   cat,
   cats,
   onSelectCat,
+  onPosterExported,
 }) => {
   const [generating, setGenerating] = useState(false);
 
@@ -37,6 +39,9 @@ export const PosterPreviewScreen: React.FC<PosterPreviewScreenProps> = ({
     try {
       setGenerating(true);
       await generateAndSharePoster(cat);
+      if (onPosterExported) {
+        onPosterExported();
+      }
     } catch (error) {
       Alert.alert('Export Failed', 'Unable to render printable PDF. Please verify printer/sharing permissions.');
     } finally {

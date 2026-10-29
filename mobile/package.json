@@ -15,6 +15,7 @@
     "expo-secure-store": "~57.0.4",
     "expo-sharing": "~57.0.22",
     "expo-status-bar": "~57.0.1",
+    "expo-store-review": "^58.0.2",
     "react": "19.2.3",
     "react-native": "0.86.3",
     "react-native-safe-area-context": "~5.7.0"
@@ -30,7 +31,7 @@
     "web": "expo start --web",
     "test": "npm run test:typecheck && npm run test:unit && npm run test:sim",
     "test:typecheck": "tsc --noEmit",
-    "test:unit": "node --experimental-strip-types --test tests/privacyEngine.test.mjs tests/monetization.test.mjs tests/multiPet.test.mjs tests/onboarding.test.mjs",
+    "test:unit": "node --experimental-strip-types --test tests/privacyEngine.test.mjs tests/monetization.test.mjs tests/multiPet.test.mjs tests/onboarding.test.mjs tests/ratingFlow.test.mjs",
     "test:sim": "bash scripts/test-simulator.sh",
     "build:ios:sim": "eas build --platform ios --profile preview-simulator",
     "build:ios:prod": "eas build --platform ios --profile production",

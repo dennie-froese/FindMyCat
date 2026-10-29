@@ -29,6 +29,7 @@ interface PetPassportScreenProps {
   onDeleteCat?: (catId: string) => void;
   onGeneratePoster: () => void;
   onOpenPaywall: () => void;
+  onOpenRateApp?: () => void;
 }
 
 export const PetPassportScreen: React.FC<PetPassportScreenProps> = ({
@@ -42,6 +43,7 @@ export const PetPassportScreen: React.FC<PetPassportScreenProps> = ({
   onDeleteCat,
   onGeneratePoster,
   onOpenPaywall,
+  onOpenRateApp,
 }) => {
   const [copiedChip, setCopiedChip] = useState(false);
   const [amberModalVisible, setAmberModalVisible] = useState(false);
@@ -419,6 +421,28 @@ export const PetPassportScreen: React.FC<PetPassportScreenProps> = ({
           <Text style={styles.callVetText}>Call Registered Contact ({cat.emergencyPhone})</Text>
         </TouchableOpacity>
       </View>
+
+      {/* 8. Rate Find My Cat */}
+      {onOpenRateApp && (
+        <View style={[styles.card, { marginBottom: 30 }]}>
+          <TouchableOpacity
+            style={styles.rateAppRow}
+            onPress={onOpenRateApp}
+            activeOpacity={0.8}
+          >
+            <View style={styles.rateAppIconBadge}>
+              <Ionicons name="star" size={20} color="#f59e0b" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.rateAppTitle}>Rate Find My Cat</Text>
+              <Text style={styles.rateAppSubtitle}>
+                Help more local spotters and pet parents protect neighborhood felines
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} />
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Modal for Stripe Amber Alert Checkout */}
       <AmberAlertCheckoutModal
@@ -876,5 +900,28 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     color: '#15803d',
+  },
+  rateAppRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  rateAppIconBadge: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: '#fef3c7',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rateAppTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: Colors.textPrimary,
+  },
+  rateAppSubtitle: {
+    fontSize: 11,
+    color: Colors.textSecondary,
+    marginTop: 2,
   },
 });
