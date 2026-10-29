@@ -43,6 +43,11 @@ describe('Web Automated Test Suite (Antigravity)', () => {
       assert.match(htmlContent, /<button[^>]+type=["']submit["']/i, 'Submit button must exist');
     });
 
+    test('Supabase Waitlist Leads synchronization support', () => {
+      assert.match(htmlContent, /waitlist_leads/i, 'index.html should integrate with Supabase waitlist_leads endpoint');
+      assert.match(htmlContent, /FMC_SUPABASE_URL/i, 'index.html should support configurable Supabase environment URL');
+    });
+
     test('Accessibility: All <img> tags must have alt attributes', () => {
       const imgTags = htmlContent.match(/<img[^>]+>/gi) || [];
       for (const img of imgTags) {

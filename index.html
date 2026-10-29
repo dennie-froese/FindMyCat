@@ -1099,7 +1099,13 @@
   </footer>
 
   <script>
-    // Paste your deployed Google Apps Script Web App URL between the quotes below:
+    // Supabase Configuration for Waitlist
+    const SUPABASE_CONFIG = {
+      url: window.FMC_SUPABASE_URL || 'https://your-project.supabase.co',
+      anonKey: window.FMC_SUPABASE_ANON_KEY || 'your-anon-key'
+    };
+
+    // Optional Google Apps Script Web App URL fallback:
     const GOOGLE_SHEET_URL = '';
 
     const form = document.getElementById('beta-form');
@@ -1120,14 +1126,41 @@
         submitBtn.innerText = 'Securing Spot...';
       }
 
-      // Always save locally in localStorage as a backup
+      // 1. Always save locally in localStorage as a resilient backup
       try {
         const existing = JSON.parse(localStorage.getItem('fmc_waitlist') || '[]');
         existing.push({ email, postcode, role, timestamp: new Date().toISOString() });
         localStorage.setItem('fmc_waitlist', JSON.stringify(existing));
       } catch (err) {}
 
-      // If a Google Sheets Web App URL is provided, send the submission
+      // 2. Sync to Supabase waitlist_leads table (via direct PostgREST API)
+      if (SUPABASE_CONFIG.url && !SUPABASE_CONFIG.url.includes('your-project.supabase.co')) {
+        try {
+          await fetch(`${SUPABASE_CONFIG.url}/rest/v1/waitlist_leads`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': SUPABASE_CONFIG.anonKey,
+              'Authorization': `Bearer ${SUPABASE_CONFIG.anonKey}`,
+              'Prefer': 'return=minimal'
+            },
+            body: JSON.stringify({
+              email: email,
+              postcode: postcode,
+              role: role,
+              source: 'landing_page_waitlist',
+              metadata: {
+                referrer: document.referrer || null,
+                submitted_at: new Date().toISOString()
+              }
+            })
+          });
+        } catch (supabaseError) {
+          console.warn('Supabase waitlist sync warning:', supabaseError);
+        }
+      }
+
+      // 3. If a Google Sheets Web App URL is provided, send the submission
       if (GOOGLE_SHEET_URL && GOOGLE_SHEET_URL.startsWith('http')) {
         try {
           const formData = new FormData();

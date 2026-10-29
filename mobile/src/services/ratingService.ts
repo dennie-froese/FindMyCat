@@ -17,6 +17,7 @@ export interface UserFeedbackEntry {
   comment: string;
   tag?: string;
   timestamp: string;
+  syncedToRemote?: boolean;
 }
 
 export const RATING_STORAGE_KEYS = {
@@ -95,6 +96,22 @@ async function getReactNativeModule() {
   try {
     const mod = await import('react-native');
     return mod;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Dynamically loads Supabase client for remote syncing.
+ * Avoids native SecureStore dependency errors in Node.js test runners.
+ */
+async function getSupabaseClient() {
+  if (typeof process !== 'undefined' && process.env?.NODE_TEST_CONTEXT) {
+    return null;
+  }
+  try {
+    const { supabase } = await import('./supabase');
+    return supabase;
   } catch {
     return null;
   }
@@ -242,6 +259,7 @@ class RatingService {
 
   /**
    * Saves private constructive feedback from the user when rating <= 3 stars.
+   * Stores locally in resilient storage and synchronizes to Supabase user_feedback table.
    */
   async submitFeedback(rating: number, comment: string, tag?: string): Promise<UserFeedbackEntry> {
     const state = await this.getRatingState();
@@ -255,7 +273,34 @@ class RatingService {
       comment: comment.trim(),
       tag,
       timestamp: new Date().toISOString(),
+      syncedToRemote: false,
     };
+
+    // Attempt remote Supabase synchronization
+    try {
+      const client = await getSupabaseClient();
+      const RN = await getReactNativeModule();
+      const platform = RN?.Platform?.OS || (typeof window !== 'undefined' ? 'web' : 'mobile');
+
+      if (client && typeof client.from === 'function') {
+        const { error: insertError } = await client.from('user_feedback').insert({
+          client_feedback_id: entry.id,
+          rating: entry.rating,
+          comment: entry.comment,
+          tag: entry.tag || 'General',
+          app_version: '1.0.0',
+          platform,
+          created_at: entry.timestamp,
+        });
+
+        if (!insertError) {
+          entry.syncedToRemote = true;
+        }
+      }
+    } catch (syncErr) {
+      // Local storage persists the feedback reliably even if Supabase is offline or unconfigured
+      console.warn('Supabase feedback sync deferred:', syncErr);
+    }
 
     try {
       const raw = await storage.getItem(RATING_STORAGE_KEYS.FEEDBACK);
