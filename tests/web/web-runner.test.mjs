@@ -104,6 +104,38 @@ describe('Web Automated Test Suite (Antigravity)', () => {
       assert.match(sightingHtml, /Dual-Zone Privacy Shield/i, 'Should display privacy shield notice');
       assert.match(sightingHtml, /id=["']location-status["']/i, 'Should have location status indicator');
     });
+
+    test('PWA & App Clip Standalone Meta Configuration', () => {
+      assert.match(sightingHtml, /<link[^>]+rel=["']manifest["'][^>]+href=["']manifest\.json["']/i, 'Must reference manifest.json');
+      assert.match(sightingHtml, /<meta[^>]+name=["']apple-mobile-web-app-capable["'][^>]+content=["']yes["']/i, 'Must enable apple-mobile-web-app-capable');
+      assert.match(sightingHtml, /<meta[^>]+name=["']apple-mobile-web-app-status-bar-style["']/i, 'Must configure status bar style');
+      assert.match(sightingHtml, /<link[^>]+rel=["']apple-touch-icon["']/i, 'Must specify apple-touch-icon');
+      assert.match(sightingHtml, /safe-area-inset-top/i, 'Must handle notch safe area insets');
+      assert.match(sightingHtml, /serviceWorker\.register/i, 'Must register service worker for offline shell support');
+    });
+
+    test('PWA Web App Manifest (manifest.json) validity and requirements', () => {
+      const manifestJson = JSON.parse(readFile('sighting/manifest.json'));
+      assert.strictEqual(manifestJson.name, 'Find My Cat — Sighting Reporter');
+      assert.strictEqual(manifestJson.short_name, 'Report Cat');
+      assert.strictEqual(manifestJson.display, 'standalone');
+      assert.strictEqual(manifestJson.theme_color, '#f05a3e');
+      assert.ok(Array.isArray(manifestJson.icons) && manifestJson.icons.length >= 3, 'Must provide multiple icon sizes');
+      const has192 = manifestJson.icons.some(i => i.sizes === '192x192');
+      const has512 = manifestJson.icons.some(i => i.sizes === '512x512');
+      const hasMaskable = manifestJson.icons.some(i => i.purpose === 'maskable');
+      assert.ok(has192, 'Manifest must contain 192x192 icon');
+      assert.ok(has512, 'Manifest must contain 512x512 icon');
+      assert.ok(hasMaskable, 'Manifest must contain maskable icon');
+    });
+
+    test('PWA Service Worker (sw.js) static cache resilience', () => {
+      const swContent = readFile('sighting/sw.js');
+      assert.match(swContent, /fmc-sighting-shell/i, 'Service worker must define cache name');
+      assert.match(swContent, /addEventListener\(['"]fetch['"]/i, 'Service worker must handle fetch events');
+      assert.match(swContent, /caches\.open/i, 'Service worker must open cache');
+      assert.match(swContent, /manifest\.json/i, 'Cache must include manifest');
+    });
   });
 
   describe('3. GitHub Pages SPA Router Fallback (404.html)', () => {

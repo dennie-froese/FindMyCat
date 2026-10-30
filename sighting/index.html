@@ -6,8 +6,18 @@
   <title>Report Cat Sighting — Find My Cat</title>
   <meta name="description" content="Quick, zero-signup sighting report for a lost cat. Help reunite a missing pet with their family.">
   <meta name="theme-color" content="#f05a3e">
-  <link rel="icon" type="image/png" href="../mobile/assets/favicon.png">
-  <link rel="apple-touch-icon" href="../mobile/assets/icon.png">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="../mobile/assets/favicon.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
+
+  <!-- iOS / Apple App Clip & Web App Standalone Meta -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Report Cat">
+  <meta name="format-detection" content="telephone=no">
+  <meta name="apple-itunes-app" content="app-id=6470000000, app-clip-bundle-id=com.findmycat.app.Clip">
 
   <!-- Open Graph -->
   <meta property="og:type" content="website">
@@ -58,11 +68,14 @@
       background-color: var(--background);
       color: var(--text);
       line-height: 1.5;
-      padding-bottom: 40px;
+      padding-top: env(safe-area-inset-top, 0px);
+      padding-bottom: calc(40px + env(safe-area-inset-bottom, 0px));
+      padding-left: env(safe-area-inset-left, 0px);
+      padding-right: env(safe-area-inset-right, 0px);
       -webkit-font-smoothing: antialiased;
     }
 
-    /* Top App Clip Style Header */
+    /* Top App Clip Style Header with Safe-Area Padding */
     .app-clip-bar {
       position: sticky;
       top: 0;
@@ -71,7 +84,7 @@
       backdrop-filter: blur(14px);
       -webkit-backdrop-filter: blur(14px);
       border-bottom: 1px solid var(--border);
-      padding: 12px 18px;
+      padding: calc(12px + env(safe-area-inset-top, 0px)) 18px 12px 18px;
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -1250,6 +1263,13 @@
       loadCatProfile();
       setupInteractions();
       detectGeolocation();
+
+      // Register Progressive Web App Service Worker
+      if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
+        navigator.serviceWorker.register('sw.js').catch((err) => {
+          console.warn('[PWA] Service worker registration skipped:', err);
+        });
+      }
     });
   </script>
 </body>
