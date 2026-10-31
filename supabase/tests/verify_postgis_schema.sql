@@ -184,6 +184,39 @@ BEGIN
     RAISE NOTICE 'TEST 6 PASSED: Sightings trigger populated jitter offset (% m) on insert.', v_dist;
 
     -- ------------------------------------------------------------------------
+    -- TEST 7: Column-Level Privacy Shield on public.cats (home_location revoked)
+    -- ------------------------------------------------------------------------
+    RAISE NOTICE '--- TEST 7: Verifying Column-Level SELECT Revocation on public.cats.home_location ---';
+    IF has_column_privilege('anon', 'public.cats', 'home_location', 'SELECT') THEN
+        RAISE EXCEPTION 'TEST 7 FAILED: anon role still has SELECT privilege on public.cats.home_location!';
+    END IF;
+    IF has_column_privilege('authenticated', 'public.cats', 'home_location', 'SELECT') THEN
+        RAISE EXCEPTION 'TEST 7 FAILED: authenticated role still has SELECT privilege on public.cats.home_location!';
+    END IF;
+    IF NOT has_column_privilege('anon', 'public.cats', 'home_location_jittered', 'SELECT') THEN
+        RAISE EXCEPTION 'TEST 7 FAILED: anon role lacks SELECT on public.cats.home_location_jittered needed by v_public_missing_cats!';
+    END IF;
+    RAISE NOTICE 'TEST 7 PASSED: Exact home_location is revoked from anon and authenticated; jittered column remains accessible.';
+
+    -- ------------------------------------------------------------------------
+    -- TEST 8: Profile Privilege Escalation & Public PII Hardening
+    -- ------------------------------------------------------------------------
+    RAISE NOTICE '--- TEST 8: Verifying Profile Privilege Escalation Protection ---';
+    IF has_table_privilege('anon', 'public.profiles', 'SELECT') THEN
+        RAISE EXCEPTION 'TEST 8 FAILED: anon role still has SELECT privilege on public.profiles!';
+    END IF;
+    IF has_column_privilege('authenticated', 'public.profiles', 'is_verified_caretaker', 'UPDATE')
+       OR has_column_privilege('authenticated', 'public.profiles', 'is_guardian_subscriber', 'UPDATE')
+       OR has_column_privilege('authenticated', 'public.profiles', 'guardian_tier', 'UPDATE') THEN
+        RAISE EXCEPTION 'TEST 8 FAILED: authenticated role can still directly UPDATE privileged billing/caretaker columns on public.profiles!';
+    END IF;
+    IF has_function_privilege('authenticated', 'public.activate_amber_alert(uuid, uuid, text, numeric)', 'EXECUTE')
+       OR has_function_privilege('anon', 'public.activate_amber_alert(uuid, uuid, text, numeric)', 'EXECUTE') THEN
+        RAISE EXCEPTION 'TEST 8 FAILED: activate_amber_alert is still executable by anon or authenticated!';
+    END IF;
+    RAISE NOTICE 'TEST 8 PASSED: Profile PII, privileged role/billing columns, and activate_amber_alert RPC are locked down.';
+
+    -- ------------------------------------------------------------------------
     -- CLEANUP TEST DATA
     -- ------------------------------------------------------------------------
     DELETE FROM public.community_alerts WHERE id = v_alert_id;
@@ -193,7 +226,7 @@ BEGIN
     DELETE FROM public.sightings WHERE id = v_sighting_id;
 
     RAISE NOTICE '==================================================';
-    RAISE NOTICE 'ALL 6 POSTGIS PRIVACY SHIELD TESTS PASSED!';
+    RAISE NOTICE 'ALL 8 POSTGIS PRIVACY SHIELD & SECURITY TESTS PASSED!';
     RAISE NOTICE '100m-200m Differential Geo-Jittering is 100%% verified.';
     RAISE NOTICE '==================================================';
 END;

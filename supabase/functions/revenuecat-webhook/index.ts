@@ -1,8 +1,8 @@
 // ============================================================================
 // Find My Cat — Supabase Edge Function: revenuecat-webhook
 // Runtime: Deno / Supabase Edge Functions
-// Description: Processes RevenueCat StoreKit 2 & Google Play Billing webhooks
-//              to sync the £2.99/mo "Cat Guardian" subscription entitlement.
+// Description: Verifies RevenueCat webhook authorization / HMAC signature and
+//              syncs the £2.99/mo "Cat Guardian" subscription entitlement.
 // ============================================================================
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
@@ -13,6 +13,57 @@ const CORS_HEADERS = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-revenuecat-signature",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
+
+function timingSafeEqual(a: string, b: string): boolean {
+  const encoder = new TextEncoder();
+  const aBytes = encoder.encode(a);
+  const bBytes = encoder.encode(b);
+  if (aBytes.length !== bBytes.length) return false;
+  let diff = 0;
+  for (let i = 0; i < aBytes.length; i++) {
+    diff |= aBytes[i] ^ bBytes[i];
+  }
+  return diff === 0;
+}
+
+async function verifyRevenueCatWebhook(
+  req: Request,
+  rawBody: string,
+  webhookSecret: string
+): Promise<boolean> {
+  // 1. Check Authorization header configured in RevenueCat dashboard
+  const authHeader = req.headers.get("authorization") ?? "";
+  if (authHeader) {
+    const token = authHeader.startsWith("Bearer ")
+      ? authHeader.slice("Bearer ".length).trim()
+      : authHeader.trim();
+    if (token && timingSafeEqual(token, webhookSecret)) {
+      return true;
+    }
+  }
+
+  // 2. Check X-RevenueCat-Signature HMAC-SHA256 header if provided
+  const signatureHeader = req.headers.get("x-revenuecat-signature") ?? "";
+  if (signatureHeader) {
+    const encoder = new TextEncoder();
+    const key = await crypto.subtle.importKey(
+      "raw",
+      encoder.encode(webhookSecret),
+      { name: "HMAC", hash: "SHA-256" },
+      false,
+      ["sign"]
+    );
+    const sigBuffer = await crypto.subtle.sign("HMAC", key, encoder.encode(rawBody));
+    const expectedHex = Array.from(new Uint8Array(sigBuffer))
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+    if (timingSafeEqual(signatureHeader.trim().toLowerCase(), expectedHex)) {
+      return true;
+    }
+  }
+
+  return false;
+}
 
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -28,10 +79,28 @@ serve(async (req: Request) => {
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? Deno.env.get("SUPABASE_ANON_KEY") ?? "";
-    const supabaseClient = createClient(supabaseUrl, supabaseServiceKey);
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+    const revenueCatWebhookSecret = Deno.env.get("REVENUECAT_WEBHOOK_SECRET") ?? "";
 
-    const eventWrapper = await req.json();
+    if (!supabaseUrl || !supabaseServiceKey || !revenueCatWebhookSecret) {
+      console.error("Missing required server configuration (SUPABASE_SERVICE_ROLE_KEY or REVENUECAT_WEBHOOK_SECRET)");
+      return new Response(JSON.stringify({ error: "Webhook server misconfigured" }), {
+        status: 500,
+        headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+      });
+    }
+
+    const rawBody = await req.text();
+    const isAuthorized = await verifyRevenueCatWebhook(req, rawBody, revenueCatWebhookSecret);
+    if (!isAuthorized) {
+      return new Response(JSON.stringify({ error: "Unauthorized webhook request" }), {
+        status: 401,
+        headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+      });
+    }
+
+    const supabaseClient = createClient(supabaseUrl, supabaseServiceKey);
+    const eventWrapper = JSON.parse(rawBody);
     const event = eventWrapper.event;
 
     if (!event) {
@@ -53,6 +122,8 @@ serve(async (req: Request) => {
     } = event;
 
     const isGuardianEntitlement = entitlementIds.includes("cat_guardian") || productId?.includes("guardian");
+    const isAnnualProduct = typeof productId === "string" && productId.toLowerCase().includes("annual");
+    const activeTier = isAnnualProduct ? "guardian_annual" : "guardian_monthly";
     const expirationDate = expirationAtMs ? new Date(expirationAtMs).toISOString() : null;
 
     let isSubscriber = false;
@@ -63,13 +134,13 @@ serve(async (req: Request) => {
       case "RENEWAL":
       case "UNCANCELLATION":
         isSubscriber = isGuardianEntitlement;
-        tier = "guardian_monthly";
+        tier = isSubscriber ? activeTier : "free";
         break;
 
       case "CANCELLATION":
         // Access remains until expiration date
-        isSubscriber = expirationAtMs ? expirationAtMs > Date.now() : false;
-        tier = isSubscriber ? "guardian_monthly" : "free";
+        isSubscriber = isGuardianEntitlement && (expirationAtMs ? expirationAtMs > Date.now() : false);
+        tier = isSubscriber ? activeTier : "free";
         break;
 
       case "EXPIRATION":
@@ -80,7 +151,10 @@ serve(async (req: Request) => {
 
       default:
         console.log(`Unhandled RevenueCat event: ${eventType}`);
-        break;
+        return new Response(JSON.stringify({ success: true, ignoredEvent: eventType }), {
+          status: 200,
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        });
     }
 
     // 1. Update user profile entitlement in Supabase
@@ -111,10 +185,10 @@ serve(async (req: Request) => {
     }
 
     // 2. Log transaction
-    const amountPence = price ? Math.round(price * 100) : 299; // £2.99
+    const amountPence = price ? Math.round(price * 100) : (isAnnualProduct ? 2999 : 299);
     await supabaseClient.from("payment_transactions").insert({
       user_id: appUserId && appUserId.length === 36 ? appUserId : null,
-      product_type: "cat_guardian_monthly",
+      product_type: isAnnualProduct ? "cat_guardian_annual" : "cat_guardian_monthly",
       provider: "revenuecat",
       amount_pence: amountPence,
       currency: (currency || "gbp").toLowerCase(),

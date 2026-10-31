@@ -136,9 +136,45 @@ describe('Web Automated Test Suite (Antigravity)', () => {
       assert.match(swContent, /caches\.open/i, 'Service worker must open cache');
       assert.match(swContent, /manifest\.json/i, 'Cache must include manifest');
     });
+
+    test('Public Sighting Runner queries v_public_missing_cats instead of raw cats table', () => {
+      assert.match(
+        sightingHtml,
+        /\.from\(['"]v_public_missing_cats['"]\)/,
+        'Sighting runner must query masked view v_public_missing_cats to prevent home_location exposure'
+      );
+      assert.doesNotMatch(
+        sightingHtml,
+        /\.from\(['"]cats['"]\)\s*\.select\(['"]\*['"]\)/,
+        'Sighting runner must never select * from raw cats table'
+      );
+    });
   });
 
-  describe('3. GitHub Pages SPA Router Fallback (404.html)', () => {
+  describe('3. Security Hardening (Webhooks & RLS Migrations)', () => {
+    test('Stripe and RevenueCat webhooks enforce cryptographic signature / secret verification', () => {
+      const stripeWebhook = readFile('supabase/functions/stripe-webhook/index.ts');
+      const rcWebhook = readFile('supabase/functions/revenuecat-webhook/index.ts');
+
+      assert.match(stripeWebhook, /STRIPE_WEBHOOK_SECRET/, 'Stripe webhook must require STRIPE_WEBHOOK_SECRET');
+      assert.match(stripeWebhook, /stripe-signature/i, 'Stripe webhook must check stripe-signature header');
+      assert.match(stripeWebhook, /verifyStripeSignature/, 'Stripe webhook must verify HMAC-SHA256 signature');
+      assert.doesNotMatch(stripeWebhook, /\.or\(`id\.eq\.\$\{/, 'Stripe webhook must not interpolate unvalidated strings into PostgREST .or()');
+
+      assert.match(rcWebhook, /REVENUECAT_WEBHOOK_SECRET/, 'RevenueCat webhook must require REVENUECAT_WEBHOOK_SECRET');
+      assert.match(rcWebhook, /verifyRevenueCatWebhook/, 'RevenueCat webhook must verify webhook secret/signature');
+    });
+
+    test('Hardening migration locks down cats.home_location and profiles privilege escalation', () => {
+      const migrationSql = readFile('supabase/migrations/20261030220000_harden_cats_profiles_and_webhooks.sql');
+      assert.match(migrationSql, /REVOKE SELECT ON public\.cats FROM anon, authenticated/i);
+      assert.match(migrationSql, /DROP POLICY IF EXISTS "Public profiles are viewable by everyone" ON public\.profiles/i);
+      assert.match(migrationSql, /fmc_trg_protect_profile_privileged_columns/i);
+      assert.match(migrationSql, /REVOKE EXECUTE ON FUNCTION public\.activate_amber_alert/i);
+    });
+  });
+
+  describe('4. GitHub Pages SPA Router Fallback (404.html)', () => {
     const notFoundHtml = readFile('404.html');
 
     test('SPA Router script redirects /sighting/:id to query parameter', () => {

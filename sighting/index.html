@@ -976,12 +976,12 @@
     async function loadCatProfile() {
       const catId = getCatIdFromUrl();
 
-      // If live Supabase client exists, attempt fetch
+      // If live Supabase client exists, attempt fetch via masked public view
       if (supabaseClient && catId !== 'demo') {
         try {
           const { data, error } = await supabaseClient
-            .from('cats')
-            .select('*')
+            .from('v_public_missing_cats')
+            .select('id, name, breed, coat_colour, distinctive_features, photo_url, emergency_phone, status, home_address_approx')
             .eq('id', catId)
             .single();
 

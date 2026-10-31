@@ -13,11 +13,56 @@
 -- ----------------------------------------------------------------------------
 -- 1. VIEWS: SECURITY INVOKER & COMPATIBLE RLS POLICIES
 -- ----------------------------------------------------------------------------
--- Ensure public search can read missing cats via masked views
+-- Ensure public search can read missing cats via masked views, while strictly
+-- revoking column-level SELECT on private ground-truth `home_location` so clients
+-- cannot query raw residential coordinates directly from public.cats.
 DROP POLICY IF EXISTS "Anyone can view missing cats" ON public.cats;
 CREATE POLICY "Anyone can view missing cats"
     ON public.cats FOR SELECT
     USING (status = 'missing');
+
+REVOKE SELECT ON public.cats FROM anon, authenticated;
+
+-- Anonymous clients may only read the safe columns projected by v_public_missing_cats
+GRANT SELECT (
+    id,
+    name,
+    breed,
+    gender,
+    is_neutered,
+    age_years,
+    coat_colour,
+    distinctive_features,
+    photo_url,
+    status,
+    missing_since,
+    home_address_approx,
+    emergency_phone,
+    home_location_jittered
+) ON public.cats TO anon;
+
+-- Authenticated clients may read cat columns EXCEPT raw `home_location`
+GRANT SELECT (
+    id,
+    owner_id,
+    name,
+    breed,
+    gender,
+    is_neutered,
+    age_years,
+    coat_colour,
+    distinctive_features,
+    microchip_number,
+    photo_url,
+    status,
+    missing_since,
+    home_address_approx,
+    home_location_jittered,
+    medical_notes,
+    emergency_phone,
+    created_at,
+    updated_at
+) ON public.cats TO authenticated;
 
 -- Set security_invoker on masked public views
 ALTER VIEW public.v_public_sightings SET (security_invoker = true);
