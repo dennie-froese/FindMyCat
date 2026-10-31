@@ -349,4 +349,29 @@ describe('PDF Poster Generator: HTML Injection & XSS Protection', () => {
     assert.ok(html.includes('&lt;5kg weight'), 'Generated HTML must preserve escaped <5kg text');
     assert.ok(html.includes('St. Mary&#39;s &amp; &lt;script&gt;hack()&lt;/script&gt; Lane'));
   });
+
+  test('generatePosterHtml renders custom poster headline, optional reward badge, and last seen note', () => {
+    const customPosterCat = {
+      id: 'cat-custom-poster',
+      name: 'Mochi',
+      breed: 'British Shorthair',
+      gender: 'Male',
+      coatColour: 'Ginger Tabby',
+      distinctiveFeatures: 'White paws',
+      microchipNumber: '985141002345678',
+      photoUrl: 'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba',
+      status: 'missing',
+      emergencyPhone: '+44 7700 900123',
+      vaccinations: [],
+      posterHeadline: 'Urgent: Missing Indoor Cat',
+      posterRewardOffered: true,
+      posterRewardText: '£75 Reward Offered',
+      posterLastSeenNote: 'Last seen Tuesday 8pm near Victoria Park East Gate',
+    };
+
+    const html = generatePosterHtml(customPosterCat);
+    assert.ok(html.includes('URGENT: MISSING INDOOR CAT'));
+    assert.ok(html.includes('LOST PET ALERT — £75 REWARD OFFERED'));
+    assert.ok(html.includes('Last seen Tuesday 8pm near Victoria Park East Gate'));
+  });
 });

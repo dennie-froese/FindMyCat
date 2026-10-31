@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,16 +8,21 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
+  TextInput,
+  Switch,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../theme/colors';
 import { CatProfile } from '../types';
 import { generateAndSharePoster } from '../services/posterGenerator';
+import { EditPetModal } from '../components/EditPetModal';
 
 interface PosterPreviewScreenProps {
   cat: CatProfile;
   cats?: CatProfile[];
   onSelectCat?: (catId: string) => void;
+  onUpdateCat?: (updated: CatProfile) => void;
+  onDeleteCat?: (catId: string) => void;
   onPosterExported?: () => void;
 }
 
@@ -25,9 +30,44 @@ export const PosterPreviewScreen: React.FC<PosterPreviewScreenProps> = ({
   cat,
   cats,
   onSelectCat,
+  onUpdateCat,
+  onDeleteCat,
   onPosterExported,
 }) => {
   const [generating, setGenerating] = useState(false);
+  const [customisingPoster, setCustomisingPoster] = useState(false);
+  const [editPetModalVisible, setEditPetModalVisible] = useState(false);
+
+  const [headline, setHeadline] = useState(cat.posterHeadline || 'PLEASE HELP FIND ME');
+  const [rewardOffered, setRewardOffered] = useState<boolean>(Boolean(cat.posterRewardOffered));
+  const [rewardText, setRewardText] = useState(cat.posterRewardText || 'Reward Offered');
+  const [lastSeenNote, setLastSeenNote] = useState(
+    cat.posterLastSeenNote || cat.homeAddressApprox || ''
+  );
+
+  useEffect(() => {
+    setHeadline(cat.posterHeadline || 'PLEASE HELP FIND ME');
+    setRewardOffered(Boolean(cat.posterRewardOffered));
+    setRewardText(cat.posterRewardText || 'Reward Offered');
+    setLastSeenNote(cat.posterLastSeenNote || cat.homeAddressApprox || '');
+  }, [cat]);
+
+  const buildEffectiveCat = (): CatProfile => ({
+    ...cat,
+    posterHeadline: headline.trim() || 'PLEASE HELP FIND ME',
+    posterRewardOffered: rewardOffered,
+    posterRewardText: rewardOffered ? rewardText.trim() || 'Reward Offered' : '',
+    posterLastSeenNote: lastSeenNote.trim() || undefined,
+    homeAddressApprox: lastSeenNote.trim() || cat.homeAddressApprox,
+  });
+
+  const handleSaveFlyerCustomisation = () => {
+    const updated = buildEffectiveCat();
+    if (onUpdateCat) {
+      onUpdateCat(updated);
+    }
+    setCustomisingPoster(false);
+  };
 
   const baseUrl = process.env.EXPO_PUBLIC_WEB_BASE_URL || 'https://find-my-cat.uk';
   const sightingUrl = `${baseUrl}/sighting/?id=${encodeURIComponent(cat.id)}`;
@@ -38,7 +78,11 @@ export const PosterPreviewScreen: React.FC<PosterPreviewScreenProps> = ({
   const handlePrint = async () => {
     try {
       setGenerating(true);
-      await generateAndSharePoster(cat);
+      const effectiveCat = buildEffectiveCat();
+      if (onUpdateCat) {
+        onUpdateCat(effectiveCat);
+      }
+      await generateAndSharePoster(effectiveCat);
       if (onPosterExported) {
         onPosterExported();
       }
@@ -50,7 +94,7 @@ export const PosterPreviewScreen: React.FC<PosterPreviewScreenProps> = ({
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       {/* Multi-Pet Selector for Poster if multiple cats exist */}
       {cats && cats.length > 1 && onSelectCat && (
         <View style={styles.petSelectorWrapper}>
@@ -103,12 +147,123 @@ export const PosterPreviewScreen: React.FC<PosterPreviewScreenProps> = ({
         </View>
       </View>
 
+      {/* Poster Edit & Customise Action Toolbar */}
+      <View style={styles.editToolbarRow}>
+        <TouchableOpacity
+          style={[
+            styles.editToolbarBtn,
+            customisingPoster && styles.editToolbarBtnActive,
+          ]}
+          onPress={() => setCustomisingPoster((prev) => !prev)}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel="Customise flyer banner, reward, and last seen location"
+        >
+          <Ionicons
+            name={customisingPoster ? 'chevron-up' : 'options-outline'}
+            size={16}
+            color={customisingPoster ? '#ffffff' : Colors.primary}
+          />
+          <Text
+            style={[
+              styles.editToolbarBtnText,
+              customisingPoster && styles.editToolbarBtnTextActive,
+            ]}
+          >
+            {customisingPoster ? 'Hide Flyer Options' : 'Customise Flyer & Reward'}
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.editToolbarBtnSecondary}
+          onPress={() => setEditPetModalVisible(true)}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel={`Edit ${cat.name} photo, markings, and phone number`}
+        >
+          <Ionicons name="create-outline" size={16} color={Colors.textPrimary} />
+          <Text style={styles.editToolbarBtnSecondaryText}>Edit Cat & Photo</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Collapsible Inline Flyer Customiser */}
+      {customisingPoster && (
+        <View style={styles.customiserCard}>
+          <Text style={styles.customiserHeading}>CUSTOMISE FLYER TEXT (LIVE PREVIEW)</Text>
+
+          <View style={styles.customiserField}>
+            <Text style={styles.customiserLabel}>Banner Headline</Text>
+            <TextInput
+              style={styles.customiserInput}
+              value={headline}
+              onChangeText={setHeadline}
+              placeholder="PLEASE HELP FIND ME"
+              placeholderTextColor={Colors.textMuted}
+            />
+          </View>
+
+          <View style={styles.customiserSwitchRow}>
+            <View style={{ flex: 1, paddingRight: 10 }}>
+              <Text style={styles.customiserLabel}>Include Reward on Banner</Text>
+              <Text style={styles.customiserHint}>
+                Adds a reward badge to the red header banner
+              </Text>
+            </View>
+            <Switch
+              value={rewardOffered}
+              onValueChange={setRewardOffered}
+              trackColor={{ false: '#cbd5e1', true: Colors.primary }}
+              accessibilityLabel="Include reward on banner"
+            />
+          </View>
+
+          {rewardOffered && (
+            <View style={styles.customiserField}>
+              <Text style={styles.customiserLabel}>Reward Text / Amount</Text>
+              <TextInput
+                style={styles.customiserInput}
+                value={rewardText}
+                onChangeText={setRewardText}
+                placeholder="e.g. £50 Reward Offered"
+                placeholderTextColor={Colors.textMuted}
+              />
+            </View>
+          )}
+
+          <View style={styles.customiserField}>
+            <Text style={styles.customiserLabel}>Last Seen Vicinity / Time</Text>
+            <TextInput
+              style={styles.customiserInput}
+              value={lastSeenNote}
+              onChangeText={setLastSeenNote}
+              placeholder="e.g. Last seen Tuesday 8pm near St. Mark’s Gate"
+              placeholderTextColor={Colors.textMuted}
+            />
+          </View>
+
+          <TouchableOpacity
+            style={styles.saveCustomiserBtn}
+            onPress={handleSaveFlyerCustomisation}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="checkmark-circle" size={16} color="#ffffff" />
+            <Text style={styles.saveCustomiserBtnText}>Save Flyer Text</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       {/* Live Flyer Mockup Preview */}
       <View style={styles.posterContainer}>
         {/* Red Banner */}
         <View style={styles.posterBanner}>
-          <Text style={styles.bannerMainText}>PLEASE HELP FIND ME</Text>
-          <Text style={styles.bannerSubText}>LOST CAT ALERT</Text>
+          <Text style={styles.bannerMainText}>
+            {(headline.trim() || 'PLEASE HELP FIND ME').toUpperCase()}
+          </Text>
+          <Text style={styles.bannerSubText}>
+            {rewardOffered
+              ? `LOST CAT ALERT • ${(rewardText.trim() || 'REWARD OFFERED').toUpperCase()}`
+              : 'LOST CAT ALERT'}
+          </Text>
         </View>
 
         {/* Photo Frame */}
@@ -145,7 +300,9 @@ export const PosterPreviewScreen: React.FC<PosterPreviewScreenProps> = ({
         {/* Last Seen Box */}
         <View style={styles.lastSeenBox}>
           <Text style={styles.lastSeenLabel}>LAST SEEN VICINITY:</Text>
-          <Text style={styles.lastSeenText}>{cat.homeAddressApprox || 'Local neighbourhood area'}</Text>
+          <Text style={styles.lastSeenText}>
+            {lastSeenNote.trim() || cat.homeAddressApprox || 'Local neighbourhood area'}
+          </Text>
         </View>
 
         {/* Footer with Phone & QR */}
@@ -181,6 +338,19 @@ export const PosterPreviewScreen: React.FC<PosterPreviewScreenProps> = ({
       <Text style={styles.footerHint}>
         Vector PDF format is calibrated for high-visibility lamp posts and community noticeboards.
       </Text>
+
+      {/* Modal for Editing Cat Photo, Clues, Microchip & Emergency Phone */}
+      <EditPetModal
+        visible={editPetModalVisible}
+        cat={cat}
+        onClose={() => setEditPetModalVisible(false)}
+        onSaveCat={(updated) => {
+          if (onUpdateCat) {
+            onUpdateCat(updated);
+          }
+        }}
+        onDeleteCat={onDeleteCat}
+      />
 
       <View style={{ height: 40 }} />
     </ScrollView>
@@ -442,6 +612,111 @@ const styles = StyleSheet.create({
   },
   pillTextActive: {
     color: Colors.primary,
+    fontWeight: '800',
+  },
+  editToolbarRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  editToolbarBtn: {
+    flex: 1.25,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 11,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    backgroundColor: '#fff7ed',
+    borderWidth: 1.5,
+    borderColor: '#fed7aa',
+  },
+  editToolbarBtnActive: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  editToolbarBtnText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: Colors.primary,
+  },
+  editToolbarBtnTextActive: {
+    color: '#ffffff',
+  },
+  editToolbarBtnSecondary: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 11,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    backgroundColor: Colors.surface,
+    borderWidth: 1.5,
+    borderColor: Colors.border,
+  },
+  editToolbarBtnSecondaryText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.textPrimary,
+  },
+  customiserCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1.5,
+    borderColor: '#fed7aa',
+    gap: 12,
+  },
+  customiserHeading: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: Colors.primary,
+    letterSpacing: 0.6,
+  },
+  customiserField: {
+    gap: 5,
+  },
+  customiserLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.textPrimary,
+  },
+  customiserHint: {
+    fontSize: 11,
+    color: Colors.textSecondary,
+    marginTop: 1,
+  },
+  customiserInput: {
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    fontSize: 13,
+    color: Colors.textPrimary,
+  },
+  customiserSwitchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 2,
+  },
+  saveCustomiserBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: Colors.primary,
+    paddingVertical: 11,
+    borderRadius: 10,
+    marginTop: 2,
+  },
+  saveCustomiserBtnText: {
+    color: '#ffffff',
+    fontSize: 13,
     fontWeight: '800',
   },
 });

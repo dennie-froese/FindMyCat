@@ -73,6 +73,9 @@ function MainAppContent() {
   const [alerts, setAlerts] = useState<CommunityAlert[]>([]);
   const [hasOnboarded, setHasOnboarded] = useState<boolean | null>(null);
   const [reportPrefillHint, setReportPrefillHint] = useState<string | undefined>(undefined);
+  const [reportPrefillLocation, setReportPrefillLocation] = useState<
+    { latitude: number; longitude: number; label: string } | undefined
+  >(undefined);
   const [reunitedCat, setReunitedCat] = useState<CatProfile | null>(null);
 
   // Initial Data Load & RevenueCat initialization
@@ -157,7 +160,9 @@ function MainAppContent() {
         setAlerts(updatedAlerts);
       }
       setSelectedCatId(updatedCat.id);
-      setActiveTab('poster');
+      if (previousCat?.status !== 'missing') {
+        setActiveTab('poster');
+      }
     } else if (previousCat && previousCat.status === 'missing' && updatedCat.status === 'safe') {
       // Reunited journey: stand down alerts and trigger celebration modal
       const updatedAlerts = await standDownCatAlerts(updatedCat.name);
@@ -294,8 +299,9 @@ function MainAppContent() {
             <SightingsFeedScreen
               sightings={sightings}
               alerts={alerts}
-              onOpenReport={(hint) => {
+              onOpenReport={(hint, location) => {
                 setReportPrefillHint(hint);
+                setReportPrefillLocation(location);
                 setActiveTab('report');
               }}
               onRefresh={handleRefresh}
@@ -305,13 +311,17 @@ function MainAppContent() {
 
           <View style={[styles.tabPane, activeTab !== 'report' && styles.tabPaneHidden]}>
             <QuickReportScreen
+              isActive={activeTab === 'report'}
               initialCatHint={reportPrefillHint}
+              initialLocation={reportPrefillLocation}
               onSubmitSighting={(report) => {
                 setReportPrefillHint(undefined);
+                setReportPrefillLocation(undefined);
                 handleNewSighting(report);
               }}
               onCancel={() => {
                 setReportPrefillHint(undefined);
+                setReportPrefillLocation(undefined);
                 setActiveTab('feed');
               }}
             />
@@ -364,6 +374,8 @@ function MainAppContent() {
                 cat={activeCat}
                 cats={cats}
                 onSelectCat={setSelectedCatId}
+                onUpdateCat={handleUpdateCat}
+                onDeleteCat={handleDeleteCat}
                 onPosterExported={async () => {
                   const check = await ratingService.recordSignificantEvent('poster_generated');
                   if (check.shouldPrompt) {

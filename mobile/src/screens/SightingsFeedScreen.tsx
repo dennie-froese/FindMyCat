@@ -13,11 +13,15 @@ import { Colors } from '../theme/colors';
 import { SightingReport, CommunityAlert } from '../types';
 import { RadarScannerHero } from '../components/RadarScannerHero';
 import { SignalDetailModal } from '../components/SignalDetailModal';
+import {
+  InteractiveRadarMapModal,
+  DroppedPinLocation,
+} from '../components/InteractiveRadarMapModal';
 
 interface SightingsFeedScreenProps {
   sightings: SightingReport[];
   alerts: CommunityAlert[];
-  onOpenReport: (hint?: string) => void;
+  onOpenReport: (hint?: string, location?: DroppedPinLocation) => void;
   onRefresh: () => void;
   refreshing: boolean;
 }
@@ -33,6 +37,7 @@ export const SightingsFeedScreen: React.FC<SightingsFeedScreenProps> = ({
 }) => {
   const [filter, setFilter] = useState<FilterType>('all');
   const [selectedSignal, setSelectedSignal] = useState<CommunityAlert | SightingReport | null>(null);
+  const [mapModalVisible, setMapModalVisible] = useState(false);
 
   const filteredSightings = sightings.filter(() => filter === 'all' || filter === 'sightings');
   const filteredAlerts = alerts.filter((a) => {
@@ -62,7 +67,13 @@ export const SightingsFeedScreen: React.FC<SightingsFeedScreenProps> = ({
         }
       >
         {/* Visual Neighborhood Radar Card */}
-        <RadarScannerHero activeSignalsCount={totalActiveSignals} alerts={alerts} sightings={sightings} />
+        <RadarScannerHero
+          activeSignalsCount={totalActiveSignals}
+          alerts={alerts}
+          sightings={sightings}
+          onExploreMap={() => setMapModalVisible(true)}
+          onSelectSignal={(signal) => setSelectedSignal(signal)}
+        />
 
         {/* Filter Chips Bar - Strictly constrained height */}
         <View style={styles.filterSection}>
@@ -283,6 +294,16 @@ export const SightingsFeedScreen: React.FC<SightingsFeedScreenProps> = ({
 
         <View style={styles.bottomSpacer} />
       </ScrollView>
+
+      {/* Full-Screen Interactive Radar & Street Sector Map Modal */}
+      <InteractiveRadarMapModal
+        visible={mapModalVisible}
+        onClose={() => setMapModalVisible(false)}
+        alerts={alerts}
+        sightings={sightings}
+        onSelectSignal={(signal) => setSelectedSignal(signal)}
+        onReportAtLocation={(hint, location) => onOpenReport(hint, location)}
+      />
 
       {/* Sighting & Alert Detail Bottom Sheet Modal */}
       <SignalDetailModal

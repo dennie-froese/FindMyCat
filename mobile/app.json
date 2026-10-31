@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Find My Cat",
-    "slug": "find-my-cat",
+    "slug": "findmycat",
     "scheme": "findmycat",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -62,11 +62,12 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "permissions": [
-        "CAMERA",
-        "READ_EXTERNAL_STORAGE",
-        "WRITE_EXTERNAL_STORAGE",
-        "ACCESS_FINE_LOCATION",
-        "ACCESS_COARSE_LOCATION"
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.RECORD_AUDIO"
       ],
       "predictiveBackGestureEnabled": false
     },
@@ -89,6 +90,12 @@
         }
       ],
       "expo-secure-store"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "35b5f7be-2b16-41c6-aff6-c3f9c6f18fba"
+      }
+    },
+    "owner": "findmycats-team"
   }
 }

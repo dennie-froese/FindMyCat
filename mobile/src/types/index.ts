@@ -29,6 +29,11 @@ export interface CatProfile {
   vaccinations: VaccinationRecord[];
   medicalNotes?: string;
   emergencyPhone: string;
+  // Optional poster customisation fields persisted per cat
+  posterHeadline?: string;
+  posterRewardOffered?: boolean;
+  posterRewardText?: string;
+  posterLastSeenNote?: string;
 }
 
 export interface SightingReport {

@@ -44,6 +44,13 @@ export function generatePosterHtml(cat: CatProfile): string {
 
   const safeName = escapeHtml(cat.name);
   const safeNameUpper = escapeHtml(cat.name.toUpperCase());
+  const safeHeadline = escapeHtml((cat.posterHeadline?.trim() || 'PLEASE HELP FIND ME').toUpperCase());
+  const rewardSuffix = cat.posterRewardOffered
+    ? (cat.posterRewardText?.trim() || 'REWARD OFFERED').toUpperCase()
+    : '';
+  const safeSubBanner = escapeHtml(
+    rewardSuffix ? `LOST PET ALERT — ${rewardSuffix}` : 'LOST PET ALERT'
+  );
   const safeBreedLine = escapeHtml([cat.breed, cat.gender].filter(Boolean).join(' • '));
   const safeCoatColour = escapeHtml(cat.coatColour || cat.coatColor || 'Not specified');
   const chip = (cat.microchipNumber || '').replace(/\s+/g, '');
@@ -51,7 +58,9 @@ export function generatePosterHtml(cat: CatProfile): string {
     ? escapeHtml(`Microchipped (ending ${chip.slice(-4)})`)
     : 'Not recorded';
   const safeDistinctiveFeatures = escapeHtml(cat.distinctiveFeatures || 'None noted');
-  const safeHomeAddressApprox = escapeHtml(cat.homeAddressApprox || 'Local neighbourhood area');
+  const safeHomeAddressApprox = escapeHtml(
+    cat.posterLastSeenNote?.trim() || cat.homeAddressApprox || 'Local neighbourhood area'
+  );
   const safeMedicalNotes = escapeHtml(
     cat.medicalNotes || 'May be timid and hiding quietly under parked cars, garden decking, or sheds.'
   );
@@ -215,8 +224,8 @@ export function generatePosterHtml(cat: CatProfile): string {
 </head>
 <body>
   <div class="header-banner">
-    <h1>PLEASE HELP FIND ME</h1>
-    <p>LOST PET ALERT</p>
+    <h1>${safeHeadline}</h1>
+    <p>${safeSubBanner}</p>
   </div>
 
   <div class="pet-photo-container">

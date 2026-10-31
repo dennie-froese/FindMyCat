@@ -24,6 +24,12 @@ interface QuickReportScreenProps {
   onSubmitSighting: (report: SightingReport) => void;
   onCancel: () => void;
   initialCatHint?: string;
+  initialLocation?: {
+    latitude: number;
+    longitude: number;
+    label: string;
+  };
+  isActive?: boolean;
 }
 
 const COAT_PRESETS = ['Ginger / Orange', 'Tuxedo (B&W)', 'Tabby (Striped)', 'All Black', 'Calico / Tortie', 'White / Grey'];
@@ -33,6 +39,8 @@ export const QuickReportScreen: React.FC<QuickReportScreenProps> = ({
   onSubmitSighting,
   onCancel,
   initialCatHint,
+  initialLocation,
+  isActive = true,
 }) => {
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [loadingMedia, setLoadingMedia] = useState(false);
@@ -148,8 +156,17 @@ export const QuickReportScreen: React.FC<QuickReportScreenProps> = ({
   };
 
   useEffect(() => {
-    fetchCurrentDeviceLocation();
-  }, []);
+    if (initialLocation) {
+      setCoords({
+        latitude: initialLocation.latitude,
+        longitude: initialLocation.longitude,
+      });
+      setLocationAvailable(true);
+      setLocationName(initialLocation.label);
+    } else if (isActive && locationAvailable === null) {
+      fetchCurrentDeviceLocation();
+    }
+  }, [isActive, locationAvailable, initialLocation]);
 
   const handleSubmit = () => {
     if (!photoUri) {
@@ -293,6 +310,9 @@ export const QuickReportScreen: React.FC<QuickReportScreenProps> = ({
           <View style={{ flex: 1 }}>
             <Text style={styles.locationLabel}>Sighting Geotag</Text>
             <Text style={styles.locationVal}>{locationName}</Text>
+            {initialLocation && (
+              <Text style={styles.exifBadge}>📍 Pinned from Interactive Radar Map</Text>
+            )}
             {hasExifGps && (
               <Text style={styles.exifBadge}>✓ EXIF GPS auto-extracted from photo</Text>
             )}
