@@ -39,9 +39,11 @@ export const SightingsFeedScreen: React.FC<SightingsFeedScreenProps> = ({
     if (filter === 'all') return true;
     if (filter === 'alerts') return a.type === 'missing_alert';
     if (filter === 'tnr') return a.type === 'tnr_colony';
-    return true;
+    return false;
   });
 
+  const missingAlertsCount = alerts.filter((a) => a.type === 'missing_alert').length;
+  const tnrColoniesCount = alerts.filter((a) => a.type === 'tnr_colony').length;
   const totalActiveSignals = alerts.length + sightings.length;
 
   return (
@@ -60,7 +62,7 @@ export const SightingsFeedScreen: React.FC<SightingsFeedScreenProps> = ({
         }
       >
         {/* Visual Neighborhood Radar Card */}
-        <RadarScannerHero activeSignalsCount={totalActiveSignals} />
+        <RadarScannerHero activeSignalsCount={totalActiveSignals} alerts={alerts} sightings={sightings} />
 
         {/* Filter Chips Bar - Strictly constrained height */}
         <View style={styles.filterSection}>
@@ -84,9 +86,11 @@ export const SightingsFeedScreen: React.FC<SightingsFeedScreenProps> = ({
               style={[styles.chip, filter === 'alerts' && styles.chipActive]}
               onPress={() => setFilter('alerts')}
               activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityState={{ selected: filter === 'alerts' }}
             >
               <Text style={[styles.chipText, filter === 'alerts' && styles.chipTextActive]}>
-                🚨 Lost Alerts ({alerts.filter((a) => a.type === 'missing_alert').length})
+                🚨 Lost Alerts ({missingAlertsCount})
               </Text>
             </TouchableOpacity>
 
@@ -94,6 +98,8 @@ export const SightingsFeedScreen: React.FC<SightingsFeedScreenProps> = ({
               style={[styles.chip, filter === 'sightings' && styles.chipActive]}
               onPress={() => setFilter('sightings')}
               activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityState={{ selected: filter === 'sightings' }}
             >
               <Text style={[styles.chipText, filter === 'sightings' && styles.chipTextActive]}>
                 👀 Sightings ({sightings.length})
@@ -104,9 +110,11 @@ export const SightingsFeedScreen: React.FC<SightingsFeedScreenProps> = ({
               style={[styles.chip, filter === 'tnr' && styles.chipActive]}
               onPress={() => setFilter('tnr')}
               activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityState={{ selected: filter === 'tnr' }}
             >
               <Text style={[styles.chipText, filter === 'tnr' && styles.chipTextActive]}>
-                🏡 TNR Colonies (1)
+                🏡 TNR Colonies ({tnrColoniesCount})
               </Text>
             </TouchableOpacity>
           </ScrollView>

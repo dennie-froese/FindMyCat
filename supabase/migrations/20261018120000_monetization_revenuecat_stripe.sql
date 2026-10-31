@@ -75,17 +75,34 @@ CREATE OR REPLACE FUNCTION public.activate_amber_alert(
 RETURNS UUID
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions
 AS $$
 DECLARE
     v_cat RECORD;
     v_alert_id UUID;
     v_jittered_loc GEOMETRY(Point, 4326);
+    v_jwt_role TEXT := coalesce(
+        nullif(current_setting('request.jwt.claim.role', true), ''),
+        (nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> 'role')
+    );
 BEGIN
+    -- Defense-in-depth: only trusted backend / service_role may execute paid Amber Alert activation
+    IF current_user NOT IN ('postgres', 'supabase_admin', 'service_role')
+       AND COALESCE(v_jwt_role, '') <> 'service_role' THEN
+        RAISE EXCEPTION 'activate_amber_alert is restricted to service_role'
+            USING ERRCODE = '42501';
+    END IF;
+
     -- Fetch the cat details
     SELECT * INTO v_cat FROM public.cats WHERE id = p_cat_id;
     IF NOT FOUND THEN
         RAISE EXCEPTION 'Cat with ID % not found', p_cat_id;
+    END IF;
+
+    -- Verify cat ownership when p_user_id is provided
+    IF p_user_id IS NOT NULL AND v_cat.owner_id IS NOT NULL AND v_cat.owner_id <> p_user_id THEN
+        RAISE EXCEPTION 'User % is not the owner of cat %', p_user_id, p_cat_id
+            USING ERRCODE = '42501';
     END IF;
 
     -- Update cat status to missing
@@ -95,16 +112,11 @@ BEGIN
         updated_at = timezone('utc', now())
     WHERE id = p_cat_id;
 
-    -- Compute privacy-shielded center for community broadcast
-    IF v_cat.home_location IS NOT NULL THEN
-        -- Use privacy shield jitter around home location
-        v_jittered_loc := ST_SetSRID(
-            ST_MakePoint(
-                ST_X(v_cat.home_location) + (random() * 0.003 - 0.0015),
-                ST_Y(v_cat.home_location) + (random() * 0.003 - 0.0015)
-            ),
-            4326
-        );
+    -- Compute privacy-shielded center for community broadcast (100m-200m annular jitter)
+    IF v_cat.home_location_jittered IS NOT NULL THEN
+        v_jittered_loc := v_cat.home_location_jittered;
+    ELSIF v_cat.home_location IS NOT NULL THEN
+        v_jittered_loc := public.fmc_calculate_jittered_point(v_cat.home_location, 100.0, 200.0);
     ELSE
         -- Fallback default (central London)
         v_jittered_loc := ST_SetSRID(ST_MakePoint(-0.0385, 51.5362), 4326);

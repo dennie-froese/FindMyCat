@@ -171,6 +171,8 @@ describe('Web Automated Test Suite (Antigravity)', () => {
       assert.match(migrationSql, /DROP POLICY IF EXISTS "Public profiles are viewable by everyone" ON public\.profiles/i);
       assert.match(migrationSql, /fmc_trg_protect_profile_privileged_columns/i);
       assert.match(migrationSql, /REVOKE EXECUTE ON FUNCTION public\.activate_amber_alert/i);
+      assert.match(migrationSql, /REVOKE EXECUTE ON FUNCTION public\.match_sighting_to_missing_cats/i);
+      assert.match(migrationSql, /COALESCE\(c\.home_location_jittered, c\.home_location\)/i);
     });
   });
 

@@ -13,6 +13,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { Colors } from '../theme/colors';
@@ -41,11 +42,12 @@ export const EditPetModal: React.FC<EditPetModalProps> = ({
   onSaveCat,
   onDeleteCat,
 }) => {
+  const insets = useSafeAreaInsets();
   const [name, setName] = useState(cat.name);
   const [breed, setBreed] = useState(cat.breed);
-  const [gender, setGender] = useState<'Male' | 'Female'>(cat.gender);
-  const [isNeutered, setIsNeutered] = useState(cat.isNeutered);
-  const [ageYears, setAgeYears] = useState(String(cat.ageYears));
+  const [gender, setGender] = useState<'Male' | 'Female' | undefined>(cat.gender);
+  const [isNeutered, setIsNeutered] = useState<boolean>(cat.isNeutered ?? true);
+  const [ageYears, setAgeYears] = useState(cat.ageYears !== undefined ? String(cat.ageYears) : '');
   const [coatColour, setCoatColour] = useState(cat.coatColour || cat.coatColor || '');
   const [distinctiveFeatures, setDistinctiveFeatures] = useState(cat.distinctiveFeatures || '');
   const [microchipNumber, setMicrochipNumber] = useState(cat.microchipNumber || '');
@@ -60,8 +62,8 @@ export const EditPetModal: React.FC<EditPetModalProps> = ({
       setName(cat.name);
       setBreed(cat.breed);
       setGender(cat.gender);
-      setIsNeutered(cat.isNeutered);
-      setAgeYears(String(cat.ageYears));
+      setIsNeutered(cat.isNeutered ?? true);
+      setAgeYears(cat.ageYears !== undefined ? String(cat.ageYears) : '');
       setCoatColour(cat.coatColour || cat.coatColor || '');
       setDistinctiveFeatures(cat.distinctiveFeatures || '');
       setMicrochipNumber(cat.microchipNumber || '');
@@ -81,7 +83,7 @@ export const EditPetModal: React.FC<EditPetModalProps> = ({
       }
 
       const pickerResult = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ['images'],
         allowsEditing: true,
         aspect: [1, 1],
         quality: 0.8,
@@ -108,7 +110,16 @@ export const EditPetModal: React.FC<EditPetModalProps> = ({
       return;
     }
 
+    if (emergencyPhone.replace(/[^0-9]/g, '').length < 7) {
+      Alert.alert(
+        'Emergency Contact Required',
+        'Please enter a valid contact phone number so neighbours or vets can reach you.'
+      );
+      return;
+    }
+
     const cleanChip = microchipNumber.replace(/\s+/g, '');
+    const parsedAge = parseInt(ageYears, 10);
 
     const updatedCat: CatProfile = {
       ...cat,
@@ -116,14 +127,14 @@ export const EditPetModal: React.FC<EditPetModalProps> = ({
       breed: breed.trim() || 'Domestic Shorthair',
       gender,
       isNeutered,
-      ageYears: parseInt(ageYears, 10) || cat.ageYears,
+      ageYears: Number.isNaN(parsedAge) ? undefined : parsedAge,
       coatColour: coatColour.trim(),
       coatColor: coatColour.trim(),
-      distinctiveFeatures: distinctiveFeatures.trim() || 'No specific markings registered',
-      microchipNumber: cleanChip || cat.microchipNumber,
+      distinctiveFeatures: distinctiveFeatures.trim(),
+      microchipNumber: cleanChip,
       photoUrl,
-      emergencyPhone: emergencyPhone.trim() || cat.emergencyPhone,
-      homeAddressApprox: homeAddressApprox.trim() || cat.homeAddressApprox,
+      emergencyPhone: emergencyPhone.trim(),
+      homeAddressApprox: homeAddressApprox.trim() || undefined,
       medicalNotes: medicalNotes.trim(),
     };
 
@@ -180,19 +191,19 @@ export const EditPetModal: React.FC<EditPetModalProps> = ({
         style={styles.modalOverlay}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <View style={styles.modalCard}>
+        <View style={[styles.modalCard, { paddingBottom: Math.max(insets.bottom, 20) }]}>
           {/* Header */}
           <View style={styles.modalHeader}>
             <View>
               <Text style={styles.modalTitle}>Edit Pet Passport</Text>
               <Text style={styles.modalSubtitle}>Update details, medical notes & microchip</Text>
             </View>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+            <TouchableOpacity onPress={onClose} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close edit pet passport modal" hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <Ionicons name="close" size={22} color={Colors.textMuted} />
             </TouchableOpacity>
           </View>
 
-          <ScrollView style={styles.formScroll} contentContainerStyle={styles.formContent}>
+          <ScrollView style={styles.formScroll} contentContainerStyle={styles.formContent} keyboardShouldPersistTaps="handled">
             {/* Photo Selection */}
             <View style={styles.photoPickerRow}>
               <Image source={{ uri: photoUrl }} style={styles.petPreviewPhoto} />

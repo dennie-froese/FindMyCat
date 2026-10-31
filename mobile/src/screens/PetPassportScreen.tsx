@@ -8,7 +8,9 @@ import {
   TouchableOpacity,
   Alert,
   Switch,
+  Linking,
 } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../theme/colors';
 import { CatProfile, GuardianSubscriptionStatus } from '../types';
@@ -24,6 +26,7 @@ interface PetPassportScreenProps {
   selectedCatId: string;
   onSelectCat: (catId: string) => void;
   onAddCat: (newCat: CatProfile) => void;
+  onOpenAddPet?: () => void;
   guardianStatus: GuardianSubscriptionStatus;
   onUpdateCat: (updated: CatProfile) => void;
   onDeleteCat?: (catId: string) => void;
@@ -38,6 +41,7 @@ export const PetPassportScreen: React.FC<PetPassportScreenProps> = ({
   selectedCatId,
   onSelectCat,
   onAddCat,
+  onOpenAddPet,
   guardianStatus,
   onUpdateCat,
   onDeleteCat,
@@ -113,11 +117,45 @@ export const PetPassportScreen: React.FC<PetPassportScreenProps> = ({
     }
   };
 
-  const handleCopyChip = () => {
+  const handleCopyChip = async () => {
+    if (!cat.microchipNumber) {
+      setEditPetModalVisible(true);
+      return;
+    }
+    try {
+      await Clipboard.setStringAsync(cat.microchipNumber);
+    } catch {
+      // Fallback if native clipboard bridge is unavailable in test runner
+    }
     setCopiedChip(true);
     setTimeout(() => setCopiedChip(false), 2000);
     Alert.alert('Microchip ID Copied', `${cat.microchipNumber} copied to clipboard.`);
   };
+
+  const handleCallEmergencyContact = async () => {
+    const sanitized = (cat.emergencyPhone || '').replace(/[^0-9+]/g, '');
+    if (!sanitized) {
+      setEditPetModalVisible(true);
+      return;
+    }
+    const telUrl = `tel:${sanitized}`;
+    try {
+      const supported = await Linking.canOpenURL(telUrl);
+      if (supported) {
+        await Linking.openURL(telUrl);
+        return;
+      }
+    } catch {
+      // Fall through to alert on simulator
+    }
+    Alert.alert('Emergency Contact', `Call or text: ${cat.emergencyPhone}`);
+  };
+
+  const metaParts = [
+    cat.gender,
+    cat.ageYears !== undefined ? `${cat.ageYears} ${cat.ageYears === 1 ? 'yr' : 'yrs'} old` : null,
+    cat.isNeutered !== undefined ? (cat.isNeutered ? 'Neutered ✓' : 'Unneutered') : null,
+  ].filter(Boolean);
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -126,7 +164,7 @@ export const PetPassportScreen: React.FC<PetPassportScreenProps> = ({
         cats={cats}
         selectedCatId={selectedCatId}
         onSelectCat={onSelectCat}
-        onAddPetPress={() => setAddPetModalVisible(true)}
+        onAddPetPress={() => (onOpenAddPet ? onOpenAddPet() : setAddPetModalVisible(true))}
       />
 
       {/* 1. Cat Guardian Subscription Tier Banner (RevenueCat StoreKit 2 / Google Play) */}
@@ -153,14 +191,14 @@ export const PetPassportScreen: React.FC<PetPassportScreenProps> = ({
               </Text>
               <View style={styles.guardianPill}>
                 <Text style={styles.guardianPillText}>
-                  {isGuardianActive ? 'PREMIUM' : '£2.99 / MO'}
+                  {isGuardianActive ? 'ACTIVE' : guardianStatus.priceDisplay.toUpperCase()}
                 </Text>
               </View>
             </View>
             <Text style={styles.guardianSubtitle}>
               {isGuardianActive
-                ? 'StoreKit 2 active • Health vault & priority radar protection'
-                : 'RevenueCat StoreKit 2 & Google Play • Auto-reminders & radar blitz'}
+                ? 'Health vault backups, booster alerts & priority radar active'
+                : 'Automated booster reminders, multi-pet vault & priority radar alerts'}
             </Text>
           </View>
           <Ionicons name="chevron-forward" size={18} color={isGuardianActive ? '#15803d' : Colors.primary} />
@@ -174,15 +212,14 @@ export const PetPassportScreen: React.FC<PetPassportScreenProps> = ({
           isMissing ? styles.emergencyCardActive : styles.emergencyCardSafe,
         ]}
       >
-        <TouchableOpacity
-          style={styles.emergencyRow}
-          onPress={() => {
-            if (!isMissing) setAmberModalVisible(true);
-            else handleToggleMissingStatus(false);
-          }}
-          activeOpacity={0.8}
-        >
-          <View style={{ flex: 1 }}>
+        <View style={styles.emergencyRow}>
+          <TouchableOpacity
+            style={{ flex: 1, paddingRight: 12 }}
+            onPress={() => handleToggleMissingStatus(!isMissing)}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Emergency Missing Mode"
+          >
             <Text style={styles.emergencyLabelHidden}>Emergency Missing Mode</Text>
             <Text
               style={[
@@ -202,13 +239,14 @@ export const PetPassportScreen: React.FC<PetPassportScreenProps> = ({
                 ? '2-Mile Amber Alert active on neighbourhood radar.'
                 : 'Emergency Missing Mode: Broadcast 2-mile neighborhood alert if cat fails to return.'}
             </Text>
-          </View>
+          </TouchableOpacity>
           <Switch
             value={isMissing}
             onValueChange={handleToggleMissingStatus}
             trackColor={{ false: '#cbd5e1', true: Colors.danger }}
+            accessibilityLabel={`Missing mode for ${cat.name}`}
           />
-        </TouchableOpacity>
+        </View>
 
         {isMissing ? (
           <View style={{ gap: 8, marginTop: 12 }}>
@@ -274,10 +312,12 @@ export const PetPassportScreen: React.FC<PetPassportScreenProps> = ({
               </View>
             </View>
             <Text style={styles.breedText}>{cat.breed}</Text>
-            <Text style={styles.metaText}>
-              {cat.gender} • {cat.ageYears} yrs old • {cat.isNeutered ? 'Neutered ✓' : 'Unneutered'}
-            </Text>
-            <Text style={styles.colorText}>🎨 {cat.coatColour || cat.coatColor}</Text>
+            {metaParts.length > 0 && (
+              <Text style={styles.metaText}>{metaParts.join(' • ')}</Text>
+            )}
+            {Boolean(cat.coatColour || cat.coatColor) && (
+              <Text style={styles.colorText}>🎨 {cat.coatColour || cat.coatColor}</Text>
+            )}
           </View>
         </View>
 
@@ -286,7 +326,9 @@ export const PetPassportScreen: React.FC<PetPassportScreenProps> = ({
         {/* Distinctive Features */}
         <View style={styles.infoSection}>
           <Text style={styles.sectionHeading}>Distinctive Physical Identifiers</Text>
-          <Text style={styles.featuresText}>"{cat.distinctiveFeatures}"</Text>
+          <Text style={styles.featuresText}>
+            {cat.distinctiveFeatures ? `"${cat.distinctiveFeatures}"` : 'No distinctive markings added yet — tap Edit below to add identifiers.'}
+          </Text>
         </View>
 
         {/* Medical & Dietary Notes */}
@@ -317,20 +359,32 @@ export const PetPassportScreen: React.FC<PetPassportScreenProps> = ({
             <Text style={styles.cardHeaderTitle}>Digital Microchip Vault</Text>
           </View>
           <View style={styles.verifiedPill}>
-            <Text style={styles.verifiedPillText}>ISO 11784 Verified</Text>
+            <Text style={styles.verifiedPillText}>
+              {cat.microchipNumber ? 'ISO 11784 Recorded' : 'Not Added'}
+            </Text>
           </View>
         </View>
 
         <View style={styles.chipDisplay}>
-          <Text style={styles.chipNumber}>{cat.microchipNumber}</Text>
-          <TouchableOpacity style={styles.chipCopyBtn} onPress={handleCopyChip}>
+          <Text style={styles.chipNumber}>
+            {cat.microchipNumber || 'No microchip recorded'}
+          </Text>
+          <TouchableOpacity
+            style={styles.chipCopyBtn}
+            onPress={handleCopyChip}
+            accessibilityRole="button"
+            accessibilityLabel={cat.microchipNumber ? 'Copy microchip number' : 'Add microchip number'}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
             <Text style={styles.chipCopyText}>
-              {copiedChip ? '✓ Copied' : 'Copy Chip ID'}
+              {cat.microchipNumber ? (copiedChip ? '✓ Copied' : 'Copy Chip ID') : '+ Add Chip'}
             </Text>
           </TouchableOpacity>
         </View>
         <Text style={styles.chipSubtext}>
-          Registered with UK Petlog & Identibase. Show to any vet practice or rescue centre scanner.
+          {cat.microchipNumber
+            ? 'Keep this 15-digit number ready for any veterinary practice, database lookup, or rescue scanner.'
+            : 'Add your cat’s 15-digit microchip number from your vet paperwork so it is ready in an emergency.'}
         </Text>
       </View>
 
@@ -357,6 +411,11 @@ export const PetPassportScreen: React.FC<PetPassportScreenProps> = ({
         </View>
 
         <View style={{ gap: 10, marginTop: 12 }}>
+          {cat.vaccinations.length === 0 && (
+            <Text style={{ fontSize: 12, color: Colors.textMuted, lineHeight: 18 }}>
+              No vaccination records added yet. Add your vet clinic in Edit Passport to track annual boosters.
+            </Text>
+          )}
           {cat.vaccinations.map((vac) => (
             <View key={vac.id} style={styles.vacItem}>
               <View style={{ flex: 1 }}>
@@ -413,12 +472,20 @@ export const PetPassportScreen: React.FC<PetPassportScreenProps> = ({
         </Text>
         <TouchableOpacity
           style={styles.callVetBtn}
-          onPress={() =>
-            Alert.alert('Emergency Contact', `Dialling registered emergency number: ${cat.emergencyPhone}`)
+          onPress={handleCallEmergencyContact}
+          accessibilityRole="button"
+          accessibilityLabel={
+            cat.emergencyPhone
+              ? `Call registered contact ${cat.emergencyPhone}`
+              : 'Add emergency contact phone number'
           }
         >
           <Ionicons name="call" size={16} color={Colors.primary} />
-          <Text style={styles.callVetText}>Call Registered Contact ({cat.emergencyPhone})</Text>
+          <Text style={styles.callVetText}>
+            {cat.emergencyPhone
+              ? `Call Registered Contact (${cat.emergencyPhone})`
+              : 'Add Emergency Contact Number'}
+          </Text>
         </TouchableOpacity>
       </View>
 

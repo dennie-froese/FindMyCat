@@ -37,6 +37,14 @@ const STORAGE_KEYS = {
   ONBOARDING: '@fmc_onboarding_v1',
 };
 
+/**
+ * Demo data is ONLY loaded when EXPO_PUBLIC_DEMO_MODE=true (e.g. for screenshots,
+ * Maestro flows, or local exploration). Real installs start with an empty vault
+ * and an empty feed so users never see fabricated pets, sightings, or alerts.
+ */
+export const IS_DEMO_MODE =
+  typeof process !== 'undefined' && process.env?.EXPO_PUBLIC_DEMO_MODE === 'true';
+
 const SEED_CATS: CatProfile[] = [
   {
     id: 'cat-1',
@@ -213,13 +221,14 @@ export async function loadCatProfiles(): Promise<CatProfile[]> {
   try {
     const raw = await storage.getItem(STORAGE_KEYS.CATS);
     if (!raw) {
-      await storage.setItem(STORAGE_KEYS.CATS, JSON.stringify(SEED_CATS));
-      return SEED_CATS;
+      const initial = IS_DEMO_MODE ? SEED_CATS : [];
+      await storage.setItem(STORAGE_KEYS.CATS, JSON.stringify(initial));
+      return initial;
     }
     return JSON.parse(raw);
   } catch (error) {
     console.error('Failed to load cats:', error);
-    return SEED_CATS;
+    return [];
   }
 }
 
@@ -259,13 +268,14 @@ export async function loadSightings(): Promise<SightingReport[]> {
   try {
     const raw = await storage.getItem(STORAGE_KEYS.SIGHTINGS);
     if (!raw) {
-      await storage.setItem(STORAGE_KEYS.SIGHTINGS, JSON.stringify(SEED_SIGHTINGS));
-      return SEED_SIGHTINGS;
+      const initial = IS_DEMO_MODE ? SEED_SIGHTINGS : [];
+      await storage.setItem(STORAGE_KEYS.SIGHTINGS, JSON.stringify(initial));
+      return initial;
     }
     return JSON.parse(raw);
   } catch (error) {
     console.error('Failed to load sightings:', error);
-    return SEED_SIGHTINGS;
+    return [];
   }
 }
 
@@ -285,13 +295,14 @@ export async function loadCommunityAlerts(): Promise<CommunityAlert[]> {
   try {
     const raw = await storage.getItem(STORAGE_KEYS.ALERTS);
     if (!raw) {
-      await storage.setItem(STORAGE_KEYS.ALERTS, JSON.stringify(SEED_ALERTS));
-      return SEED_ALERTS;
+      const initial = IS_DEMO_MODE ? SEED_ALERTS : [];
+      await storage.setItem(STORAGE_KEYS.ALERTS, JSON.stringify(initial));
+      return initial;
     }
     return JSON.parse(raw);
   } catch (error) {
     console.error('Failed to load alerts:', error);
-    return SEED_ALERTS;
+    return [];
   }
 }
 

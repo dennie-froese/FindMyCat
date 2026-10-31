@@ -2,16 +2,23 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../theme/colors';
+import { CommunityAlert, SightingReport } from '../types';
 
 interface RadarScannerHeroProps {
   activeSignalsCount: number;
+  alerts?: CommunityAlert[];
+  sightings?: SightingReport[];
   onExploreMap?: () => void;
 }
 
 export const RadarScannerHero: React.FC<RadarScannerHeroProps> = ({
   activeSignalsCount,
-  onExploreMap,
+  alerts = [],
+  sightings = [],
 }) => {
+  const missingBlip = alerts.find((a) => a.type === 'missing_alert' && a.status !== 'safe');
+  const tnrBlip = alerts.find((a) => a.type === 'tnr_colony');
+  const latestSighting = sightings[0];
   return (
     <View style={styles.container}>
       {/* Radar Canvas Card */}
@@ -28,29 +35,41 @@ export const RadarScannerHero: React.FC<RadarScannerHeroProps> = ({
           </View>
         </View>
 
-        {/* Radar Blip: Oliver (Lost Tuxedo - Red) */}
-        <View style={[styles.blipContainer, { top: 28, right: 65 }]}>
-          <View style={[styles.blipDot, styles.blipRed]} />
-          <View style={styles.blipTagRed}>
-            <Text style={styles.blipTagTextRed}>Oliver (0.3 mi)</Text>
+        {/* Dynamic Radar Blip: Active Missing Cat Alert */}
+        {missingBlip && (
+          <View style={[styles.blipContainer, { top: 28, right: 56 }]}>
+            <View style={[styles.blipDot, styles.blipRed]} />
+            <View style={styles.blipTagRed}>
+              <Text style={styles.blipTagTextRed} numberOfLines={1}>
+                {missingBlip.petName || 'Missing Cat'} ({missingBlip.distanceMiles} mi)
+              </Text>
+            </View>
           </View>
-        </View>
+        )}
 
-        {/* Radar Blip: Mochi Sighting (Amber) */}
-        <View style={[styles.blipContainer, { bottom: 35, right: 80 }]}>
-          <View style={[styles.blipDot, styles.blipAmber]} />
-          <View style={styles.blipTagAmber}>
-            <Text style={styles.blipTagTextAmber}>Sighting (0.1 mi)</Text>
+        {/* Dynamic Radar Blip: Recent Sighting */}
+        {latestSighting && (
+          <View style={[styles.blipContainer, { bottom: 35, right: 68 }]}>
+            <View style={[styles.blipDot, styles.blipAmber]} />
+            <View style={styles.blipTagAmber}>
+              <Text style={styles.blipTagTextAmber} numberOfLines={1}>
+                {latestSighting.catNameHint || 'Sighting'} ({latestSighting.reportedAtDisplay})
+              </Text>
+            </View>
           </View>
-        </View>
+        )}
 
-        {/* Radar Blip: TNR Colony (Green) */}
-        <View style={[styles.blipContainer, { top: 45, left: 55 }]}>
-          <View style={[styles.blipDot, styles.blipGreen]} />
-          <View style={styles.blipTagGreen}>
-            <Text style={styles.blipTagTextGreen}>TNR Colony (0.5 mi)</Text>
+        {/* Dynamic Radar Blip: TNR Colony */}
+        {tnrBlip && (
+          <View style={[styles.blipContainer, { top: 45, left: 48 }]}>
+            <View style={[styles.blipDot, styles.blipGreen]} />
+            <View style={styles.blipTagGreen}>
+              <Text style={styles.blipTagTextGreen} numberOfLines={1}>
+                TNR Colony ({tnrBlip.distanceMiles} mi)
+              </Text>
+            </View>
           </View>
-        </View>
+        )}
 
         {/* Radar Overlay Header */}
         <View style={styles.headerOverlay}>
@@ -62,7 +81,9 @@ export const RadarScannerHero: React.FC<RadarScannerHeroProps> = ({
             <Text style={styles.radiusText}>2.0 MI RADIUS</Text>
           </View>
           <Text style={styles.heroSignalText}>
-            {activeSignalsCount} active feline signals detected nearby
+            {activeSignalsCount === 0
+              ? 'All quiet nearby — no active alerts in your radius'
+              : `${activeSignalsCount} active feline ${activeSignalsCount === 1 ? 'signal' : 'signals'} detected nearby`}
           </Text>
         </View>
 

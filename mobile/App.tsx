@@ -7,7 +7,7 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
-import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -41,6 +41,15 @@ import { RateAppModal } from './src/components/RateAppModal';
 import { ratingService, RatingTriggerReason } from './src/services/ratingService';
 
 export default function App() {
+  return (
+    <SafeAreaProvider>
+      <MainAppContent />
+    </SafeAreaProvider>
+  );
+}
+
+function MainAppContent() {
+  const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<MainTab>('feed');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -247,27 +256,41 @@ export default function App() {
 
   if (!hasOnboarded) {
     return (
-      <SafeAreaProvider>
+      <>
         <StatusBar style="dark" />
         <OnboardingScreen onComplete={handleOnboardingComplete} />
-      </SafeAreaProvider>
+      </>
     );
   }
 
   const headerProps = getHeaderProps();
+  const criticalAlertsCount = alerts.filter((a) => a.status === 'critical').length;
+
+  const handleHeaderBellPress = () => {
+    if (activeTab !== 'feed') {
+      setActiveTab('feed');
+    }
+    Alert.alert(
+      criticalAlertsCount > 0 ? '🚨 Active Neighbourhood Alerts' : '🛡️ Neighbourhood Radar',
+      criticalAlertsCount > 0
+        ? `There ${criticalAlertsCount === 1 ? 'is 1 active missing cat alert' : `are ${criticalAlertsCount} active missing cat alerts`} in your 2-mile radius.`
+        : `No emergency missing alerts right now. ${sightings.length} recent ${sightings.length === 1 ? 'sighting' : 'sightings'} logged nearby.`
+    );
+  };
 
   return (
-    <SafeAreaProvider>
-      <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
         <StatusBar style="dark" />
         <Header
           title={headerProps.title}
           subtitle={headerProps.subtitle}
           badge={headerProps.badge}
+          hasActiveEmergency={isAnyCatMissing || criticalAlertsCount > 0}
+          onSearchPress={handleHeaderBellPress}
         />
 
         <View style={styles.screenContainer}>
-          {activeTab === 'feed' && (
+          <View style={[styles.tabPane, activeTab !== 'feed' && styles.tabPaneHidden]}>
             <SightingsFeedScreen
               sightings={sightings}
               alerts={alerts}
@@ -278,9 +301,9 @@ export default function App() {
               onRefresh={handleRefresh}
               refreshing={refreshing}
             />
-          )}
+          </View>
 
-          {activeTab === 'report' && (
+          <View style={[styles.tabPane, activeTab !== 'report' && styles.tabPaneHidden]}>
             <QuickReportScreen
               initialCatHint={reportPrefillHint}
               onSubmitSighting={(report) => {
@@ -292,7 +315,7 @@ export default function App() {
                 setActiveTab('feed');
               }}
             />
-          )}
+          </View>
 
           {activeTab === 'passport' && (
             activeCat ? (
@@ -302,6 +325,7 @@ export default function App() {
                 selectedCatId={activeCat.id}
                 onSelectCat={setSelectedCatId}
                 onAddCat={handleAddCat}
+                onOpenAddPet={() => setAddPetModalVisible(true)}
                 guardianStatus={guardianStatus}
                 onUpdateCat={handleUpdateCat}
                 onDeleteCat={handleDeleteCat}
@@ -425,11 +449,14 @@ export default function App() {
 
 
         {/* Bottom Tab Navigation Bar */}
-        <View style={styles.bottomNav}>
+        <View style={[styles.bottomNav, { paddingBottom: Math.max(insets.bottom, 10) }]}>
           <TouchableOpacity
             style={styles.navItem}
             onPress={() => setActiveTab('feed')}
             activeOpacity={0.7}
+            accessibilityRole="tab"
+            accessibilityLabel="Radar"
+            accessibilityState={{ selected: activeTab === 'feed' }}
           >
             <Ionicons
               name={activeTab === 'feed' ? 'paw' : 'paw-outline'}
@@ -447,6 +474,9 @@ export default function App() {
             style={styles.navItemSpecial}
             onPress={() => setActiveTab('report')}
             activeOpacity={0.85}
+            accessibilityRole="tab"
+            accessibilityLabel="Report Sighting"
+            accessibilityState={{ selected: activeTab === 'report' }}
           >
             <View
               style={[
@@ -470,6 +500,9 @@ export default function App() {
             style={styles.navItem}
             onPress={() => setActiveTab('passport')}
             activeOpacity={0.7}
+            accessibilityRole="tab"
+            accessibilityLabel="Pet Passport"
+            accessibilityState={{ selected: activeTab === 'passport' }}
           >
             <Ionicons
               name={activeTab === 'passport' ? 'shield-checkmark' : 'shield-checkmark-outline'}
@@ -490,6 +523,9 @@ export default function App() {
             style={styles.navItem}
             onPress={() => setActiveTab('poster')}
             activeOpacity={0.7}
+            accessibilityRole="tab"
+            accessibilityLabel="Lost Poster"
+            accessibilityState={{ selected: activeTab === 'poster' }}
           >
             <Ionicons
               name={activeTab === 'poster' ? 'document-text' : 'document-text-outline'}
@@ -506,8 +542,7 @@ export default function App() {
             </Text>
           </TouchableOpacity>
         </View>
-      </SafeAreaView>
-    </SafeAreaProvider>
+    </SafeAreaView>
   );
 }
 
@@ -531,6 +566,12 @@ const styles = StyleSheet.create({
   screenContainer: {
     flex: 1,
     backgroundColor: Colors.background,
+  },
+  tabPane: {
+    flex: 1,
+  },
+  tabPaneHidden: {
+    display: 'none',
   },
   bottomNav: {
     flexDirection: 'row',

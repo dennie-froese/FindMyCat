@@ -92,9 +92,13 @@ export const PosterPreviewScreen: React.FC<PosterPreviewScreenProps> = ({
       <View style={styles.infoBanner}>
         <Ionicons name="flash" size={20} color="#1d4ed8" />
         <View style={{ flex: 1 }}>
-          <Text style={styles.infoTitle}>SMART VIRAL LOST POSTER</Text>
+          <Text style={styles.infoTitle}>
+            {cat.status === 'missing' ? 'EMERGENCY LOST POSTER READY' : 'PREPAREDNESS POSTER PREVIEW'}
+          </Text>
           <Text style={styles.infoDesc}>
-            Physical posters equipped with dynamic QR codes allow passing neighbours to log instant sightings directly into this app without downloading anything.
+            {cat.status === 'missing'
+              ? 'Physical posters equipped with dynamic QR codes allow passing neighbours to log instant sightings directly into this app without downloading anything.'
+              : `${cat.name} is currently marked Safe. Preview or print a standby flyer now, or activate Missing Mode in the Passport tab if ${cat.name} goes missing.`}
           </Text>
         </View>
       </View>
@@ -104,7 +108,7 @@ export const PosterPreviewScreen: React.FC<PosterPreviewScreenProps> = ({
         {/* Red Banner */}
         <View style={styles.posterBanner}>
           <Text style={styles.bannerMainText}>PLEASE HELP FIND ME</Text>
-          <Text style={styles.bannerSubText}>LOST CAT ALERT • REWARD OFFERED</Text>
+          <Text style={styles.bannerSubText}>LOST CAT ALERT</Text>
         </View>
 
         {/* Photo Frame */}
@@ -114,21 +118,27 @@ export const PosterPreviewScreen: React.FC<PosterPreviewScreenProps> = ({
 
         {/* Pet Name */}
         <Text style={styles.catName}>{cat.name.toUpperCase()}</Text>
-        <Text style={styles.catBreed}>{cat.breed} • {cat.gender}</Text>
+        <Text style={styles.catBreed}>
+          {[cat.breed, cat.gender].filter(Boolean).join(' • ')}
+        </Text>
 
         {/* Specs Box */}
         <View style={styles.specsBox}>
           <View style={styles.specRow}>
             <Text style={styles.specLabel}>Coat Colour & Markings:</Text>
-            <Text style={styles.specVal}>{cat.coatColour || cat.coatColor}</Text>
+            <Text style={styles.specVal}>{cat.coatColour || cat.coatColor || 'Not specified'}</Text>
           </View>
           <View style={styles.specRow}>
             <Text style={styles.specLabel}>Microchip:</Text>
-            <Text style={styles.specVal}>Registered ({cat.microchipNumber.slice(-4)})</Text>
+            <Text style={styles.specVal}>
+              {cat.microchipNumber
+                ? `Microchipped (ending ${cat.microchipNumber.slice(-4)})`
+                : 'Not recorded'}
+            </Text>
           </View>
           <View style={[styles.specRow, { borderBottomWidth: 0 }]}>
             <Text style={styles.specLabel}>Distinguishing Clues:</Text>
-            <Text style={styles.specVal}>{cat.distinctiveFeatures}</Text>
+            <Text style={styles.specVal}>{cat.distinctiveFeatures || 'None noted'}</Text>
           </View>
         </View>
 
@@ -142,7 +152,7 @@ export const PosterPreviewScreen: React.FC<PosterPreviewScreenProps> = ({
         <View style={styles.footerRow}>
           <View style={styles.phoneCol}>
             <Text style={styles.callLabel}>IF SEEN, CALL/TEXT:</Text>
-            <Text style={styles.phoneVal}>{cat.emergencyPhone}</Text>
+            <Text style={styles.phoneVal}>{cat.emergencyPhone || 'Add phone in Passport'}</Text>
           </View>
 
           <View style={styles.qrCol}>

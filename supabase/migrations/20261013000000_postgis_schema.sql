@@ -686,6 +686,7 @@ RETURNS TABLE (
 )
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public, extensions
 AS $$
 DECLARE
     target_location GEOMETRY;
@@ -707,11 +708,23 @@ BEGIN
         c.photo_url,
         c.owner_id,
         c.emergency_phone,
-        ROUND(ST_Distance(c.home_location::geography, target_location::geography)::numeric, 1)::double precision AS distance_meters
+        -- Use privacy-shielded jittered coordinate and coarse 50m rounding
+        -- to prevent sub-meter trilateration of private residential home_location
+        (ROUND(
+            ST_Distance(
+                COALESCE(c.home_location_jittered, c.home_location)::geography,
+                target_location::geography
+            )::numeric / 50.0,
+            0
+        ) * 50.0)::double precision AS distance_meters
     FROM public.cats c
     WHERE c.status = 'missing'
-      AND c.home_location IS NOT NULL
-      AND ST_DWithin(c.home_location::geography, target_location::geography, search_radius_meters)
+      AND COALESCE(c.home_location_jittered, c.home_location) IS NOT NULL
+      AND ST_DWithin(
+          COALESCE(c.home_location_jittered, c.home_location)::geography,
+          target_location::geography,
+          search_radius_meters
+      )
     ORDER BY distance_meters ASC;
 END;
 $$;

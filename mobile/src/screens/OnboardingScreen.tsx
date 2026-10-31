@@ -7,13 +7,14 @@ import {
   ScrollView,
   TextInput,
   Image,
-  SafeAreaView,
   Alert,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
+import * as ImagePicker from 'expo-image-picker';
 import { Colors } from '../theme/colors';
 import { CatProfile, UserRole } from '../types';
 import { requestNotificationPermissions } from '../services/reminderService';
@@ -38,11 +39,35 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onComplete }
   const [catBreed, setCatBreed] = useState('Domestic Shorthair');
   const [coatColour, setCoatColour] = useState('');
   const [microchipNumber, setMicrochipNumber] = useState('');
-  const [emergencyPhone, setEmergencyPhone] = useState('+44 7700 900123');
+  const [emergencyPhone, setEmergencyPhone] = useState('');
   const [selectedPhotoIndex, setSelectedPhotoIndex] = useState(0);
+  // A real photo of the guardian's own cat (strongly preferred for lost posters)
+  const [customPhotoUri, setCustomPhotoUri] = useState<string | null>(null);
 
   // Spotter state (Step 3 for Spotters)
-  const [neighborhoodZone, setNeighborhoodZone] = useState('Victoria Park / Hackney');
+  const [neighborhoodZone, setNeighborhoodZone] = useState('');
+
+  const handlePickOwnPhoto = async () => {
+    try {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert('Permission Needed', 'Photo library access is required to choose a photo of your cat.');
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+      if (!result.canceled && result.assets?.[0]) {
+        setCustomPhotoUri(result.assets[0].uri);
+      }
+    } catch (err) {
+      console.warn('Photo picker error:', err);
+      Alert.alert('Photo Unavailable', 'We couldn’t open your photo library. You can add a photo later from the Passport tab.');
+    }
+  };
 
   const handleNextFromWelcome = () => setStep(2);
 
@@ -55,14 +80,21 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onComplete }
     if (!catName.trim() && role === 'guardian') {
       Alert.alert(
         'Cat Name Required',
-        'Please enter your cat’s name, or tap "Skip to Demo Pet" to explore with a pre-configured profile.',
+        'Please enter your cat’s name, or skip for now and add your cat later from the Passport tab.',
         [
           { text: 'Enter Name', style: 'cancel' },
           {
-            text: 'Skip to Demo',
+            text: 'Skip for Now',
             onPress: () => setStep(4),
           },
         ]
+      );
+      return;
+    }
+    if (role === 'guardian' && emergencyPhone.replace(/[^0-9]/g, '').length < 7) {
+      Alert.alert(
+        'Contact Number Required',
+        'Please enter a phone number neighbours can call if they find your cat. It is printed on your lost poster.'
       );
       return;
     }
@@ -87,37 +119,20 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onComplete }
     let createdCat: CatProfile | undefined;
 
     if (role === 'guardian' && catName.trim()) {
-      const cleanChip = microchipNumber.replace(/\s+/g, '') || `98514${Math.floor(1000000000 + Math.random() * 9000000000)}`;
+      // Only persist what the guardian actually told us. Unknown fields stay empty
+      // so the passport and lost poster never show fabricated details.
       createdCat = {
         id: `cat-${Date.now()}`,
         name: catName.trim(),
         breed: catBreed.trim() || 'Domestic Shorthair',
-        gender: 'Female',
-        isNeutered: true,
-        ageYears: 2,
-        coatColour: coatColour.trim() || 'Tabby / Domestic',
-        coatColor: coatColour.trim() || 'Tabby / Domestic',
-        distinctiveFeatures: 'Registered during initial onboarding',
-        microchipNumber: cleanChip,
-        photoUrl: PRESET_AVATARS[selectedPhotoIndex],
+        coatColour: coatColour.trim(),
+        coatColor: coatColour.trim(),
+        distinctiveFeatures: '',
+        microchipNumber: microchipNumber.replace(/\s+/g, ''),
+        photoUrl: customPhotoUri || PRESET_AVATARS[selectedPhotoIndex],
         status: 'safe',
-        emergencyPhone: emergencyPhone.trim() || '+44 7700 900123',
-        homeAddressApprox: neighborhoodZone,
-        homeCoords: {
-          latitude: 51.5362,
-          longitude: -0.0385,
-        },
-        medicalNotes: 'Digital passport registered in Find My Cat vault.',
-        vaccinations: [
-          {
-            id: `vac-${Date.now()}`,
-            name: 'Core Cat Flu & Enteritis Booster',
-            administeredDate: new Date().toISOString().split('T')[0],
-            nextDueDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-            vetClinic: 'Registered Veterinary Practice',
-            isUpToDate: true,
-          },
-        ],
+        emergencyPhone: emergencyPhone.trim(),
+        vaccinations: [],
       };
     }
 
@@ -278,26 +293,56 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onComplete }
                 </Text>
 
                 {/* Avatar Presets */}
-                <Text style={styles.inputLabel}>Choose an Avatar Photo</Text>
+                <Text style={styles.inputLabel}>Photo of Your Cat</Text>
                 <View style={styles.avatarRow}>
-                  {PRESET_AVATARS.map((uri, idx) => (
-                    <TouchableOpacity
-                      key={idx}
-                      onPress={() => setSelectedPhotoIndex(idx)}
-                      style={[
-                        styles.avatarOption,
-                        selectedPhotoIndex === idx && styles.avatarOptionSelected,
-                      ]}
-                    >
-                      <Image source={{ uri }} style={styles.avatarImage} />
-                      {selectedPhotoIndex === idx && (
+                  <TouchableOpacity
+                    onPress={handlePickOwnPhoto}
+                    style={[
+                      styles.avatarOption,
+                      styles.avatarOptionOwn,
+                      customPhotoUri !== null && styles.avatarOptionSelected,
+                    ]}
+                    accessibilityRole="button"
+                    accessibilityLabel={customPhotoUri ? 'Change photo of your cat' : 'Choose a photo of your cat'}
+                  >
+                    {customPhotoUri ? (
+                      <>
+                        <Image source={{ uri: customPhotoUri }} style={styles.avatarImage} />
                         <View style={styles.avatarCheck}>
                           <Ionicons name="checkmark" size={12} color="#ffffff" />
                         </View>
-                      )}
-                    </TouchableOpacity>
-                  ))}
+                      </>
+                    ) : (
+                      <Ionicons name="camera" size={22} color={Colors.primary} />
+                    )}
+                  </TouchableOpacity>
+                  {PRESET_AVATARS.map((uri, idx) => {
+                    const isSelected = customPhotoUri === null && selectedPhotoIndex === idx;
+                    return (
+                      <TouchableOpacity
+                        key={idx}
+                        onPress={() => {
+                          setCustomPhotoUri(null);
+                          setSelectedPhotoIndex(idx);
+                        }}
+                        style={[styles.avatarOption, isSelected && styles.avatarOptionSelected]}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Placeholder avatar ${idx + 1}`}
+                        accessibilityState={{ selected: isSelected }}
+                      >
+                        <Image source={{ uri }} style={styles.avatarImage} />
+                        {isSelected && (
+                          <View style={styles.avatarCheck}>
+                            <Ionicons name="checkmark" size={12} color="#ffffff" />
+                          </View>
+                        )}
+                      </TouchableOpacity>
+                    );
+                  })}
                 </View>
+                <Text style={styles.photoHint}>
+                  A real photo helps neighbours recognise your cat. Placeholder avatars can be replaced later.
+                </Text>
 
                 {/* Cat Name */}
                 <View style={styles.inputGroup}>
@@ -334,12 +379,27 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onComplete }
                   />
                 </View>
 
-                {/* Microchip */}
+                {/* Emergency Contact */}
                 <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>ISO 15-Digit Microchip (Optional)</Text>
+                  <Text style={styles.inputLabel}>Your Contact Phone *</Text>
                   <TextInput
                     style={styles.textInput}
-                    placeholder="e.g. 985141009876543 (leave empty to auto-assign)"
+                    placeholder="Printed on lost posters, e.g. 07700 900000"
+                    value={emergencyPhone}
+                    onChangeText={setEmergencyPhone}
+                    keyboardType="phone-pad"
+                    textContentType="telephoneNumber"
+                    autoComplete="tel"
+                    placeholderTextColor={Colors.textMuted}
+                  />
+                </View>
+
+                {/* Microchip */}
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Microchip Number (Optional)</Text>
+                  <TextInput
+                    style={styles.textInput}
+                    placeholder="15 digits, from your vet or chip paperwork"
                     value={microchipNumber}
                     onChangeText={setMicrochipNumber}
                     keyboardType="numeric"
@@ -356,7 +416,7 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onComplete }
                   style={styles.skipBtn}
                   onPress={() => setStep(4)}
                 >
-                  <Text style={styles.skipBtnText}>Skip and explore with demo cats</Text>
+                  <Text style={styles.skipBtnText}>Skip for now, add my cat later</Text>
                 </TouchableOpacity>
               </>
             ) : (
@@ -617,14 +677,14 @@ const styles = StyleSheet.create({
   },
   avatarRow: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
+    justifyContent: 'space-between',
     marginBottom: 20,
   },
   avatarOption: {
     position: 'relative',
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     borderWidth: 2,
     borderColor: '#e2e8f0',
   },
@@ -632,10 +692,24 @@ const styles = StyleSheet.create({
     borderColor: Colors.primary,
     borderWidth: 3,
   },
+  avatarOptionOwn: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.primaryLight,
+    borderStyle: 'dashed',
+    borderColor: Colors.primary,
+  },
+  photoHint: {
+    fontSize: 12,
+    color: Colors.textMuted,
+    lineHeight: 17,
+    marginTop: -10,
+    marginBottom: 18,
+  },
   avatarImage: {
     width: '100%',
     height: '100%',
-    borderRadius: 30,
+    borderRadius: 26,
   },
   avatarCheck: {
     position: 'absolute',

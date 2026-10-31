@@ -214,7 +214,11 @@ BEGIN
        OR has_function_privilege('anon', 'public.activate_amber_alert(uuid, uuid, text, numeric)', 'EXECUTE') THEN
         RAISE EXCEPTION 'TEST 8 FAILED: activate_amber_alert is still executable by anon or authenticated!';
     END IF;
-    RAISE NOTICE 'TEST 8 PASSED: Profile PII, privileged role/billing columns, and activate_amber_alert RPC are locked down.';
+    IF has_function_privilege('authenticated', 'public.match_sighting_to_missing_cats(uuid, double precision)', 'EXECUTE')
+       OR has_function_privilege('anon', 'public.match_sighting_to_missing_cats(uuid, double precision)', 'EXECUTE') THEN
+        RAISE EXCEPTION 'TEST 8 FAILED: match_sighting_to_missing_cats is still executable by anon or authenticated!';
+    END IF;
+    RAISE NOTICE 'TEST 8 PASSED: Profile PII, privileged role/billing columns, activate_amber_alert, and match_sighting_to_missing_cats RPCs are locked down.';
 
     -- ------------------------------------------------------------------------
     -- CLEANUP TEST DATA

@@ -8,7 +8,9 @@ import {
   ScrollView,
   ActivityIndicator,
   Alert,
+  Linking,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../theme/colors';
 import {
@@ -29,6 +31,7 @@ export const GuardianPaywallModal: React.FC<GuardianPaywallModalProps> = ({
   onClose,
   onSubscriptionSuccess,
 }) => {
+  const insets = useSafeAreaInsets();
   const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'annual'>('monthly');
   const [loading, setLoading] = useState(false);
   const [restoring, setRestoring] = useState(false);
@@ -68,16 +71,16 @@ export const GuardianPaywallModal: React.FC<GuardianPaywallModalProps> = ({
   };
 
   return (
-    <Modal visible={visible} animationType="slide" transparent presentationStyle="overFullScreen">
+    <Modal visible={visible} animationType="slide" transparent presentationStyle="overFullScreen" onRequestClose={onClose}>
       <View style={styles.modalOverlay}>
-        <View style={styles.modalContent}>
+        <View style={[styles.modalContent, { paddingBottom: Math.max(insets.bottom, 24) }]}>
           {/* Header Bar */}
           <View style={styles.headerRow}>
             <View style={styles.headerBadge}>
               <Ionicons name="sparkles" size={14} color="#ffffff" />
               <Text style={styles.headerBadgeText}>CAT GUARDIAN TIER</Text>
             </View>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <TouchableOpacity onPress={onClose} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close Cat Guardian paywall" hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
               <Ionicons name="close" size={22} color={Colors.textSecondary} />
             </TouchableOpacity>
           </View>
@@ -86,7 +89,7 @@ export const GuardianPaywallModal: React.FC<GuardianPaywallModalProps> = ({
             {/* Hero Title */}
             <Text style={styles.title}>Complete Protection for Every Cat You Love</Text>
             <Text style={styles.subtitle}>
-              Powered by StoreKit 2 & Google Play via RevenueCat. Cancel anytime in 1 tap.
+              Protect every cat in your household with automated booster reminders and priority radar alerts. Cancel anytime.
             </Text>
 
             {/* Plan Selector */}
@@ -107,7 +110,7 @@ export const GuardianPaywallModal: React.FC<GuardianPaywallModalProps> = ({
                     <Text style={styles.popularPillText}>MOST POPULAR</Text>
                   </View>
                 </View>
-                <Text style={styles.planPrice}>£2.99</Text>
+                <Text style={styles.planPrice}>{REVENUECAT_CONFIG.MONTHLY_PRICE_DISPLAY.split(" ")[0]}</Text>
                 <Text style={styles.planPeriod}>per month • auto-renewing</Text>
               </TouchableOpacity>
 
@@ -127,7 +130,7 @@ export const GuardianPaywallModal: React.FC<GuardianPaywallModalProps> = ({
                     <Text style={[styles.popularPillText, { color: '#15803d' }]}>SAVE 16%</Text>
                   </View>
                 </View>
-                <Text style={styles.planPrice}>£29.99</Text>
+                <Text style={styles.planPrice}>{REVENUECAT_CONFIG.ANNUAL_PRICE_DISPLAY.split(" ")[0]}</Text>
                 <Text style={styles.planPeriod}>per year (£2.49/mo eq.)</Text>
               </TouchableOpacity>
             </View>
@@ -163,8 +166,8 @@ export const GuardianPaywallModal: React.FC<GuardianPaywallModalProps> = ({
                   <Ionicons name="shield-checkmark" size={20} color="#ffffff" />
                   <Text style={styles.ctaButtonText}>
                     {selectedPlan === 'monthly'
-                      ? 'Subscribe for £2.99 / month'
-                      : 'Subscribe for £29.99 / year'}
+                      ? `Subscribe for ${REVENUECAT_CONFIG.MONTHLY_PRICE_DISPLAY}`
+                      : `Subscribe for ${REVENUECAT_CONFIG.ANNUAL_PRICE_DISPLAY}`}
                   </Text>
                 </>
               )}
@@ -185,8 +188,28 @@ export const GuardianPaywallModal: React.FC<GuardianPaywallModalProps> = ({
               </TouchableOpacity>
 
               <Text style={styles.legalNotice}>
-                Subscriptions are billed to your Apple ID / Google Account. Subscription automatically renews unless cancelled at least 24 hours prior to end of the current period. Manage in Settings. RevenueCat tracked revenue free tier up to $2,500/mo.
+                Payment will be charged to your Apple ID or Google Play account at confirmation of purchase. Subscription automatically renews unless cancelled at least 24 hours before the end of the current billing period. You can manage or cancel your subscription anytime in your device Account Settings.
               </Text>
+
+              <View style={styles.legalLinksRow}>
+                <TouchableOpacity
+                  onPress={() => Linking.openURL('https://find-my-cat.uk/terms')}
+                  accessibilityRole="link"
+                  accessibilityLabel="Terms of Use (EULA)"
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Text style={styles.legalLinkText}>Terms of Use (EULA)</Text>
+                </TouchableOpacity>
+                <Text style={styles.legalLinkDot}>•</Text>
+                <TouchableOpacity
+                  onPress={() => Linking.openURL('https://find-my-cat.uk/privacy')}
+                  accessibilityRole="link"
+                  accessibilityLabel="Privacy Policy"
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Text style={styles.legalLinkText}>Privacy Policy</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </ScrollView>
         </View>
@@ -382,9 +405,26 @@ const styles = StyleSheet.create({
     color: Colors.primary,
   },
   legalNotice: {
-    fontSize: 9,
+    fontSize: 10,
     color: Colors.textMuted,
     textAlign: 'center',
-    lineHeight: 13,
+    lineHeight: 14,
+  },
+  legalLinksRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 6,
+  },
+  legalLinkText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: Colors.textSecondary,
+    textDecorationLine: 'underline',
+  },
+  legalLinkDot: {
+    fontSize: 11,
+    color: Colors.textMuted,
   },
 });

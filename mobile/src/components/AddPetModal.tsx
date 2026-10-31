@@ -13,6 +13,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { Colors } from '../theme/colors';
@@ -36,6 +37,7 @@ export const AddPetModal: React.FC<AddPetModalProps> = ({
   onClose,
   onSaveCat,
 }) => {
+  const insets = useSafeAreaInsets();
   const [name, setName] = useState('');
   const [breed, setBreed] = useState('Domestic Shorthair');
   const [gender, setGender] = useState<'Male' | 'Female'>('Female');
@@ -44,9 +46,9 @@ export const AddPetModal: React.FC<AddPetModalProps> = ({
   const [coatColour, setCoatColour] = useState('');
   const [distinctiveFeatures, setDistinctiveFeatures] = useState('');
   const [microchipNumber, setMicrochipNumber] = useState('');
-  const [emergencyPhone, setEmergencyPhone] = useState('+44 7700 900123');
+  const [emergencyPhone, setEmergencyPhone] = useState('');
   const [photoUrl, setPhotoUrl] = useState(PRESET_AVATARS[0]);
-  const [vetClinic, setVetClinic] = useState('Local Veterinary Clinic');
+  const [vetClinic, setVetClinic] = useState('');
 
   const handlePickPhoto = async () => {
     try {
@@ -57,7 +59,7 @@ export const AddPetModal: React.FC<AddPetModalProps> = ({
       }
 
       const pickerResult = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ['images'],
         allowsEditing: true,
         aspect: [1, 1],
         quality: 0.8,
@@ -84,17 +86,30 @@ export const AddPetModal: React.FC<AddPetModalProps> = ({
       return;
     }
 
-    const cleanChip = microchipNumber.replace(/\s+/g, '');
-    const chipToSave = cleanChip || `98514${Math.floor(1000000000 + Math.random() * 9000000000)}`;
+    if (emergencyPhone.replace(/[^0-9]/g, '').length < 7) {
+      Alert.alert(
+        'Emergency Contact Required',
+        'Please enter a valid contact phone number so neighbours or vets can reach you if your cat is found.'
+      );
+      return;
+    }
 
-    const coreVaccination: VaccinationRecord = {
-      id: `vac-${Date.now()}-1`,
-      name: 'Cat Flu & Enteritis (Core Booster)',
-      administeredDate: new Date().toISOString().split('T')[0],
-      nextDueDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      vetClinic: vetClinic.trim() || 'Local Veterinary Practice',
-      isUpToDate: true,
-    };
+    const cleanChip = microchipNumber.replace(/\s+/g, '');
+    const trimmedVet = vetClinic.trim();
+    const initialVaccinations: VaccinationRecord[] = trimmedVet
+      ? [
+          {
+            id: `vac-${Date.now()}-1`,
+            name: 'Core Cat Flu & Enteritis Booster',
+            administeredDate: new Date().toISOString().split('T')[0],
+            nextDueDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+            vetClinic: trimmedVet,
+            isUpToDate: true,
+          },
+        ]
+      : [];
+
+    const parsedAge = parseInt(ageYears, 10);
 
     const newCat: CatProfile = {
       id: `cat-${Date.now()}`,
@@ -102,21 +117,15 @@ export const AddPetModal: React.FC<AddPetModalProps> = ({
       breed: breed.trim() || 'Domestic Shorthair',
       gender,
       isNeutered,
-      ageYears: parseInt(ageYears, 10) || 1,
+      ageYears: Number.isNaN(parsedAge) ? undefined : parsedAge,
       coatColour: coatColour.trim(),
       coatColor: coatColour.trim(),
-      distinctiveFeatures: distinctiveFeatures.trim() || 'No specific markings registered',
-      microchipNumber: chipToSave,
+      distinctiveFeatures: distinctiveFeatures.trim(),
+      microchipNumber: cleanChip,
       photoUrl,
       status: 'safe',
-      emergencyPhone: emergencyPhone.trim() || '+44 7700 900123',
-      homeAddressApprox: 'Neighbourhood Resident',
-      homeCoords: {
-        latitude: 51.5362,
-        longitude: -0.0385,
-      },
-      medicalNotes: 'Registered in Find My Cat digital passport vault.',
-      vaccinations: [coreVaccination],
+      emergencyPhone: emergencyPhone.trim(),
+      vaccinations: initialVaccinations,
     };
 
     onSaveCat(newCat);
@@ -138,6 +147,9 @@ export const AddPetModal: React.FC<AddPetModalProps> = ({
     setCoatColour('');
     setDistinctiveFeatures('');
     setMicrochipNumber('');
+    setEmergencyPhone('');
+    setPhotoUrl(PRESET_AVATARS[0]);
+    setVetClinic('');
   };
 
   return (
@@ -146,19 +158,19 @@ export const AddPetModal: React.FC<AddPetModalProps> = ({
         style={styles.modalOverlay}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <View style={styles.modalCard}>
+        <View style={[styles.modalCard, { paddingBottom: Math.max(insets.bottom, 20) }]}>
           {/* Header */}
           <View style={styles.modalHeader}>
             <View>
               <Text style={styles.modalTitle}>New Pet Passport</Text>
               <Text style={styles.modalSubtitle}>Register feline in your digital health vault</Text>
             </View>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+            <TouchableOpacity onPress={onClose} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close new pet passport modal" hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <Ionicons name="close" size={22} color={Colors.textMuted} />
             </TouchableOpacity>
           </View>
 
-          <ScrollView style={styles.formScroll} contentContainerStyle={styles.formContent}>
+          <ScrollView style={styles.formScroll} contentContainerStyle={styles.formContent} keyboardShouldPersistTaps="handled">
             {/* Photo Selection */}
             <View style={styles.photoPickerRow}>
               <Image source={{ uri: photoUrl }} style={styles.petPreviewPhoto} />
@@ -292,7 +304,7 @@ export const AddPetModal: React.FC<AddPetModalProps> = ({
             <View style={styles.fieldGroup}>
               <View style={styles.labelRow}>
                 <Text style={styles.label}>Microchip Number (ISO 11784/11785)</Text>
-                <Text style={styles.labelOptional}>Optional (auto-generated if empty)</Text>
+                <Text style={styles.labelOptional}>Optional</Text>
               </View>
               <TextInput
                 style={styles.input}

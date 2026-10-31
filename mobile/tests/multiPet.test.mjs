@@ -6,6 +6,11 @@ import {
   scheduleLocalBoosterAlerts,
 } from '../src/services/reminderService.ts';
 import {
+  escapeHtml,
+  sanitizeImageUrl,
+  generatePosterHtml,
+} from '../src/services/posterGenerator.ts';
+import {
   standDownCatAlerts,
   broadcastCatMissingAlert,
   loadCommunityAlerts,
@@ -296,5 +301,52 @@ describe('Retention Engine: Local Booster Reminder Schedule (PASS-02)', () => {
     assert.strictEqual(result.success, true);
     assert.strictEqual(result.scheduledCount, 2); // 7-day and 1-day alert
     assert.ok(result.confirmationMessage.includes('Scheduled 2 local booster alerts'));
+  });
+});
+
+describe('PDF Poster Generator: HTML Injection & XSS Protection', () => {
+  test('escapeHtml neutralizes HTML tags, quotes, and ampersands', () => {
+    assert.strictEqual(
+      escapeHtml('<script>alert("xss")</script> & \'single\''),
+      '&lt;script&gt;alert(&quot;xss&quot;)&lt;/script&gt; &amp; &#39;single&#39;'
+    );
+  });
+
+  test('sanitizeImageUrl allows safe image protocols and blocks javascript: URIs', () => {
+    assert.strictEqual(sanitizeImageUrl('javascript:alert(1)'), '');
+    assert.strictEqual(sanitizeImageUrl('data:text/html;base64,PHNjcmlwdD4='), '');
+    assert.strictEqual(
+      sanitizeImageUrl('https://images.unsplash.com/photo-1?a=1&b=2'),
+      'https://images.unsplash.com/photo-1?a=1&amp;b=2'
+    );
+  });
+
+  test('generatePosterHtml escapes all interpolated cat profile fields', () => {
+    const xssCat = {
+      id: 'cat-xss-1',
+      name: 'Mochi <img src=x onerror=alert(1)>',
+      breed: 'Tabby & <script>evil()</script>',
+      gender: 'Male',
+      isNeutered: true,
+      ageYears: 3,
+      coatColour: 'Ginger "quoted" <b onmouseover=alert(1)>coat</b>',
+      distinctiveFeatures: '<svg onload=alert(1)> & <5kg weight',
+      microchipNumber: '985141002345678',
+      photoUrl: 'javascript:alert("xss")',
+      status: 'missing',
+      homeAddressApprox: 'St. Mary\'s & <script>hack()</script> Lane',
+      medicalNotes: 'Requires <5mg daily & special diet',
+      emergencyPhone: '+44 7700 900123" onfocus="alert(1)',
+      vaccinations: [],
+    };
+
+    const html = generatePosterHtml(xssCat);
+
+    assert.ok(!html.includes('<script>'), 'Generated HTML must not contain unescaped <script> tags');
+    assert.ok(!html.includes('<svg onload='), 'Generated HTML must not contain unescaped <svg> tags');
+    assert.ok(!html.includes('<img src=x onerror='), 'Generated HTML must not contain injected <img> tags');
+    assert.ok(!html.includes('javascript:alert'), 'Generated HTML must block javascript: photo URLs');
+    assert.ok(html.includes('&lt;5kg weight'), 'Generated HTML must preserve escaped <5kg text');
+    assert.ok(html.includes('St. Mary&#39;s &amp; &lt;script&gt;hack()&lt;/script&gt; Lane'));
   });
 });

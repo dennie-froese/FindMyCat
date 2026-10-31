@@ -1,6 +1,35 @@
-import * as Print from 'expo-print';
-import * as Sharing from 'expo-sharing';
-import { CatProfile } from '../types';
+import type { CatProfile } from '../types/index.ts';
+
+/**
+ * Escapes HTML special characters to prevent Stored XSS / HTML injection
+ * when interpolating user-supplied cat profile fields into the printable PDF WebView.
+ */
+export function escapeHtml(value: string | undefined | null): string {
+  if (value === undefined || value === null) {
+    return '';
+  }
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/**
+ * Validates and escapes an image URL for safe interpolation inside an `<img src="...">` attribute.
+ * Rejects dangerous protocols such as `javascript:` or `data:text/html`.
+ */
+export function sanitizeImageUrl(url: string | undefined | null): string {
+  if (!url) {
+    return '';
+  }
+  const trimmed = String(url).trim();
+  if (/^(https?:\/\/|file:\/\/|data:image\/(?:png|jpeg|jpg|webp|gif);base64,)/i.test(trimmed)) {
+    return escapeHtml(trimmed);
+  }
+  return '';
+}
 
 /**
  * Generates high-contrast vector HTML template for print-ready lost cat flyers (A4).
@@ -13,12 +42,29 @@ export function generatePosterHtml(cat: CatProfile): string {
     sightingUrl
   )}`;
 
+  const safeName = escapeHtml(cat.name);
+  const safeNameUpper = escapeHtml(cat.name.toUpperCase());
+  const safeBreedLine = escapeHtml([cat.breed, cat.gender].filter(Boolean).join(' • '));
+  const safeCoatColour = escapeHtml(cat.coatColour || cat.coatColor || 'Not specified');
+  const chip = (cat.microchipNumber || '').replace(/\s+/g, '');
+  const safeMicrochipStatus = chip
+    ? escapeHtml(`Microchipped (ending ${chip.slice(-4)})`)
+    : 'Not recorded';
+  const safeDistinctiveFeatures = escapeHtml(cat.distinctiveFeatures || 'None noted');
+  const safeHomeAddressApprox = escapeHtml(cat.homeAddressApprox || 'Local neighbourhood area');
+  const safeMedicalNotes = escapeHtml(
+    cat.medicalNotes || 'May be timid and hiding quietly under parked cars, garden decking, or sheds.'
+  );
+  const safeEmergencyPhone = escapeHtml(cat.emergencyPhone);
+  const safePhotoUrl = sanitizeImageUrl(cat.photoUrl);
+  const safeQrCodeUrl = sanitizeImageUrl(qrCodeUrl);
+
   return `
 <!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
-  <title>LOST CAT — ${cat.name}</title>
+  <title>LOST CAT — ${safeName}</title>
   <style>
     @page {
       size: A4 portrait;
@@ -170,41 +216,41 @@ export function generatePosterHtml(cat: CatProfile): string {
 <body>
   <div class="header-banner">
     <h1>PLEASE HELP FIND ME</h1>
-    <p>LOST PET ALERT — REWARD OFFERED</p>
+    <p>LOST PET ALERT</p>
   </div>
 
   <div class="pet-photo-container">
-    <img src="${cat.photoUrl}" class="pet-photo" alt="${cat.name}" />
+    <img src="${safePhotoUrl}" class="pet-photo" alt="${safeName}" />
   </div>
 
-  <div class="pet-name">${cat.name.toUpperCase()}</div>
-  <div class="pet-breed">${cat.breed} • ${cat.gender}</div>
+  <div class="pet-name">${safeNameUpper}</div>
+  <div class="pet-breed">${safeBreedLine}</div>
 
   <div class="details-grid">
     <div class="detail-item">
-      <strong>Coat Colour & Markings</strong>
-      <span>${cat.coatColour || cat.coatColor}</span>
+      <strong>Coat Colour &amp; Markings</strong>
+      <span>${safeCoatColour}</span>
     </div>
     <div class="detail-item">
       <strong>Microchip Status</strong>
-      <span>Registered with Petlog (${cat.microchipNumber.slice(-6)}****)</span>
+      <span>${safeMicrochipStatus}</span>
     </div>
     <div class="detail-item" style="grid-column: span 2;">
       <strong>Distinctive Identifiers</strong>
-      <span>${cat.distinctiveFeatures}</span>
+      <span>${safeDistinctiveFeatures}</span>
     </div>
   </div>
 
   <div class="callout-box">
     <strong>LAST SEEN VICINITY:</strong>
-    <p>${cat.homeAddressApprox || 'Local neighbourhood area'}</p>
-    <p style="margin-top: 6px; font-size: 14px; color: #64748b;">${cat.medicalNotes || 'May be timid and hiding quietly under parked cars, garden decking, or sheds.'}</p>
+    <p>${safeHomeAddressApprox}</p>
+    <p style="margin-top: 6px; font-size: 14px; color: #64748b;">${safeMedicalNotes}</p>
   </div>
 
   <div class="footer-action">
     <div class="phone-block">
       <div class="label">IF SEEN, CALL OR TEXT IMMEDIATELY:</div>
-      <div class="phone-number">${cat.emergencyPhone}</div>
+      <div class="phone-number">${safeEmergencyPhone}</div>
     </div>
     <div class="qr-block">
       <div class="qr-text">
@@ -212,7 +258,7 @@ export function generatePosterHtml(cat: CatProfile): string {
         ANONYMOUS SIGHTING<br>
         (ZERO APP REQUIRED)
       </div>
-      <img src="${qrCodeUrl}" class="qr-image" alt="QR Code to Sighting" />
+      <img src="${safeQrCodeUrl}" class="qr-image" alt="QR Code to Sighting" />
     </div>
   </div>
 </body>
@@ -225,6 +271,9 @@ export function generatePosterHtml(cat: CatProfile): string {
  */
 export async function generateAndSharePoster(cat: CatProfile): Promise<string> {
   const html = generatePosterHtml(cat);
+  const Print = await import('expo-print');
+  const Sharing = await import('expo-sharing');
+
   const { uri } = await Print.printToFileAsync({
     html,
     margins: {

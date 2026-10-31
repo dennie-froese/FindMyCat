@@ -7,6 +7,7 @@ interface HeaderProps {
   title: string;
   subtitle?: string;
   badge?: string;
+  hasActiveEmergency?: boolean;
   onSearchPress?: () => void;
 }
 
@@ -14,8 +15,10 @@ export const Header: React.FC<HeaderProps> = ({
   title,
   subtitle,
   badge,
+  hasActiveEmergency = false,
   onSearchPress,
 }) => {
+  const isMissingBadge = hasActiveEmergency || Boolean(badge && badge.includes('MISSING'));
   return (
     <View style={styles.container}>
       {/* Top brand & status row */}
@@ -27,7 +30,12 @@ export const Header: React.FC<HeaderProps> = ({
           <View>
             <Text style={styles.brandTitle}>Find My Cat</Text>
             <View style={styles.liveRadarRow}>
-              <View style={styles.pulseDot} />
+              <View
+                style={[
+                  styles.pulseDot,
+                  isMissingBadge && { backgroundColor: Colors.danger },
+                ]}
+              />
               <Text style={styles.radarZoneText}>
                 {badge || 'LIVE RADAR • 2 MI RADIUS'}
               </Text>
@@ -36,9 +44,18 @@ export const Header: React.FC<HeaderProps> = ({
         </View>
 
         {/* Action button */}
-        <TouchableOpacity style={styles.iconBtn} onPress={onSearchPress}>
-          <Ionicons name="notifications-outline" size={20} color={Colors.textPrimary} />
-        </TouchableOpacity>
+        {onSearchPress && (
+          <TouchableOpacity
+            style={styles.iconBtn}
+            onPress={onSearchPress}
+            accessibilityRole="button"
+            accessibilityLabel="Neighbourhood alerts and notifications"
+            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+          >
+            <Ionicons name="notifications-outline" size={20} color={Colors.textPrimary} />
+            {isMissingBadge && <View style={styles.bellBadgeDot} />}
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Main Title & Subtitle */}
@@ -109,14 +126,26 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   iconBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     backgroundColor: '#f8fafc',
     borderWidth: 1,
     borderColor: Colors.border,
     alignItems: 'center',
     justifyContent: 'center',
+    position: 'relative',
+  },
+  bellBadgeDot: {
+    position: 'absolute',
+    top: 8,
+    right: 9,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: Colors.danger,
+    borderWidth: 1.5,
+    borderColor: '#ffffff',
   },
   titleSection: {
     marginTop: 2,

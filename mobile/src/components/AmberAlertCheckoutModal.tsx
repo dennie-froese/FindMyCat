@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../theme/colors';
 import { stripeService, STRIPE_CONFIG } from '../services/stripeService';
@@ -27,6 +28,7 @@ export const AmberAlertCheckoutModal: React.FC<AmberAlertCheckoutModalProps> = (
   onClose,
   onAlertActivated,
 }) => {
+  const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(false);
 
   const handleStripeAmberAlertPurchase = async () => {
@@ -63,7 +65,7 @@ export const AmberAlertCheckoutModal: React.FC<AmberAlertCheckoutModalProps> = (
   const handleFreeActivation = () => {
     Alert.alert(
       'Standard Missing Mode',
-      `Mark ${cat.name} as missing on the standard neighbourhood radar without the 2-mile paid broadcast?`,
+      `Mark ${cat.name} as missing on the 2-mile neighbourhood radar for free, without the paid SMS & volunteer coordinator dispatch?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -78,16 +80,16 @@ export const AmberAlertCheckoutModal: React.FC<AmberAlertCheckoutModalProps> = (
   };
 
   return (
-    <Modal visible={visible} animationType="slide" transparent presentationStyle="overFullScreen">
+    <Modal visible={visible} animationType="slide" transparent presentationStyle="overFullScreen" onRequestClose={onClose}>
       <View style={styles.modalOverlay}>
-        <View style={styles.modalContent}>
+        <View style={[styles.modalContent, { paddingBottom: Math.max(insets.bottom, 24) }]}>
           {/* Header */}
           <View style={styles.headerRow}>
             <View style={styles.emergencyBadge}>
               <Ionicons name="warning" size={14} color="#ffffff" />
               <Text style={styles.emergencyBadgeText}>EMERGENCY MISSING MODE</Text>
             </View>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <TouchableOpacity onPress={onClose} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close emergency alert modal" hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
               <Ionicons name="close" size={22} color={Colors.textSecondary} />
             </TouchableOpacity>
           </View>
@@ -186,7 +188,7 @@ export const AmberAlertCheckoutModal: React.FC<AmberAlertCheckoutModalProps> = (
                 <Text style={styles.freeButtonText}>Activate Standard Missing Mode (Free)</Text>
               </TouchableOpacity>
               <Text style={styles.freeSubtext}>
-                Shows on standard radar feed without priority 2-mile push burst.
+                Posts your missing alert to the live 2-mile neighbourhood radar feed for free.
               </Text>
             </View>
           </ScrollView>

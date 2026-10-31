@@ -11,13 +11,13 @@ export interface CatProfile {
   id: string;
   name: string;
   breed: string;
-  gender: 'Male' | 'Female';
-  isNeutered: boolean;
-  ageYears: number;
+  gender?: 'Male' | 'Female'; // undefined = not provided by the guardian
+  isNeutered?: boolean; // undefined = not provided by the guardian
+  ageYears?: number; // undefined = not provided by the guardian
   coatColour: string;
   coatColor?: string; // Compatibility alias
   distinctiveFeatures: string;
-  microchipNumber: string;
+  microchipNumber: string; // empty string = no microchip recorded
   photoUrl: string;
   status: 'safe' | 'missing';
   missingSince?: string;

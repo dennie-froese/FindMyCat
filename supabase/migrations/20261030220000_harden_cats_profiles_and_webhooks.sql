@@ -168,6 +168,171 @@ CREATE TRIGGER trg_profiles_protect_privileged_columns
     FOR EACH ROW
     EXECUTE FUNCTION public.fmc_trg_protect_profile_privileged_columns();
 
+-- ----------------------------------------------------------------------------
+-- 3. HARDEN SECURITY DEFINER RPCs (activate_amber_alert & match_sighting_to_missing_cats)
+-- ----------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.activate_amber_alert(
+    p_cat_id UUID,
+    p_user_id UUID,
+    p_payment_intent_id TEXT,
+    p_broadcast_radius_meters NUMERIC DEFAULT 3218.69 -- 2 miles
+)
+RETURNS UUID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, extensions
+AS $$
+DECLARE
+    v_cat RECORD;
+    v_alert_id UUID;
+    v_jittered_loc GEOMETRY(Point, 4326);
+    v_jwt_role TEXT := coalesce(
+        nullif(current_setting('request.jwt.claim.role', true), ''),
+        (nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> 'role')
+    );
+BEGIN
+    -- Defense-in-depth: only trusted backend / service_role may execute paid Amber Alert activation
+    IF current_user NOT IN ('postgres', 'supabase_admin', 'service_role')
+       AND COALESCE(v_jwt_role, '') <> 'service_role' THEN
+        RAISE EXCEPTION 'activate_amber_alert is restricted to service_role'
+            USING ERRCODE = '42501';
+    END IF;
+
+    -- Fetch the cat details
+    SELECT * INTO v_cat FROM public.cats WHERE id = p_cat_id;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Cat with ID % not found', p_cat_id;
+    END IF;
+
+    -- Verify cat ownership when p_user_id is provided
+    IF p_user_id IS NOT NULL AND v_cat.owner_id IS NOT NULL AND v_cat.owner_id <> p_user_id THEN
+        RAISE EXCEPTION 'User % is not the owner of cat %', p_user_id, p_cat_id
+            USING ERRCODE = '42501';
+    END IF;
+
+    -- Update cat status to missing
+    UPDATE public.cats
+    SET status = 'missing',
+        missing_since = COALESCE(missing_since, timezone('utc', now())),
+        updated_at = timezone('utc', now())
+    WHERE id = p_cat_id;
+
+    -- Compute privacy-shielded center for community broadcast (100m-200m annular jitter)
+    IF v_cat.home_location_jittered IS NOT NULL THEN
+        v_jittered_loc := v_cat.home_location_jittered;
+    ELSIF v_cat.home_location IS NOT NULL THEN
+        v_jittered_loc := public.fmc_calculate_jittered_point(v_cat.home_location, 100.0, 200.0);
+    ELSE
+        -- Fallback default (central London)
+        v_jittered_loc := ST_SetSRID(ST_MakePoint(-0.0385, 51.5362), 4326);
+    END IF;
+
+    -- Create or upgrade community alert to critical Amber Alert
+    INSERT INTO public.community_alerts (
+        cat_id,
+        created_by,
+        type,
+        title,
+        subtitle,
+        badge_text,
+        photo_url,
+        location,
+        broadcast_radius_meters,
+        status,
+        expires_at
+    )
+    VALUES (
+        p_cat_id,
+        COALESCE(p_user_id, v_cat.owner_id),
+        'missing_alert',
+        '🚨 AMBER ALERT: ' || v_cat.name || ' Missing',
+        'High-priority 2-mile emergency broadcast. ' || COALESCE(v_cat.distinctive_features, 'Please look out!'),
+        'URGENT 2-MILE RADAR',
+        v_cat.photo_url,
+        v_jittered_loc,
+        p_broadcast_radius_meters,
+        'critical',
+        timezone('utc', now() + interval '72 hours')
+    )
+    RETURNING id INTO v_alert_id;
+
+    -- Update transaction record if payment intent supplied
+    IF p_payment_intent_id IS NOT NULL THEN
+        UPDATE public.payment_transactions
+        SET status = 'succeeded',
+            metadata = metadata || jsonb_build_object('activated_alert_id', v_alert_id),
+            updated_at = timezone('utc', now())
+        WHERE stripe_payment_intent_id = p_payment_intent_id;
+    END IF;
+
+    RETURN v_alert_id;
+END;
+$$;
+
 -- Restrict paid Amber Alert activation RPC to `service_role` only (called by verified stripe-webhook)
 REVOKE EXECUTE ON FUNCTION public.activate_amber_alert(uuid, uuid, text, numeric) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.activate_amber_alert(uuid, uuid, text, numeric) TO service_role;
+
+-- Harden match_sighting_to_missing_cats against sub-meter trilateration of home_location
+-- and restrict direct execution to `service_role`.
+CREATE OR REPLACE FUNCTION public.match_sighting_to_missing_cats(
+    sighting_uuid UUID,
+    search_radius_meters DOUBLE PRECISION DEFAULT 1500.0
+)
+RETURNS TABLE (
+    cat_id UUID,
+    cat_name TEXT,
+    breed TEXT,
+    coat_colour TEXT,
+    photo_url TEXT,
+    owner_id UUID,
+    emergency_phone TEXT,
+    distance_meters DOUBLE PRECISION
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, extensions
+AS $$
+DECLARE
+    target_location GEOMETRY;
+BEGIN
+    SELECT exact_location INTO target_location
+    FROM public.sightings
+    WHERE id = sighting_uuid;
+
+    IF target_location IS NULL THEN
+        RETURN;
+    END IF;
+
+    RETURN QUERY
+    SELECT
+        c.id AS cat_id,
+        c.name AS cat_name,
+        c.breed,
+        c.coat_colour,
+        c.photo_url,
+        c.owner_id,
+        c.emergency_phone,
+        -- Use privacy-shielded jittered coordinate and coarse 50m rounding
+        -- to prevent sub-meter trilateration of private residential home_location
+        (ROUND(
+            ST_Distance(
+                COALESCE(c.home_location_jittered, c.home_location)::geography,
+                target_location::geography
+            )::numeric / 50.0,
+            0
+        ) * 50.0)::double precision AS distance_meters
+    FROM public.cats c
+    WHERE c.status = 'missing'
+      AND COALESCE(c.home_location_jittered, c.home_location) IS NOT NULL
+      AND ST_DWithin(
+          COALESCE(c.home_location_jittered, c.home_location)::geography,
+          target_location::geography,
+          search_radius_meters
+      )
+    ORDER BY distance_meters ASC;
+END;
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.match_sighting_to_missing_cats(uuid, double precision) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.match_sighting_to_missing_cats(uuid, double precision) TO service_role;

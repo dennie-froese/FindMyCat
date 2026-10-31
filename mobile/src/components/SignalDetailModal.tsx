@@ -9,6 +9,7 @@ import {
   TouchableOpacity,
   Share,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../theme/colors';
 import { CommunityAlert, SightingReport } from '../types';
@@ -26,6 +27,7 @@ export const SignalDetailModal: React.FC<SignalDetailModalProps> = ({
   signal,
   onOpenReport,
 }) => {
+  const insets = useSafeAreaInsets();
   if (!signal) return null;
 
   // Determine whether this signal is an Alert or an Anonymous Sighting
@@ -62,7 +64,11 @@ export const SignalDetailModal: React.FC<SignalDetailModalProps> = ({
   const handleAction = () => {
     onClose();
     if (onOpenReport) {
-      onOpenReport(title);
+      const linkedCatHint =
+        alert?.type === 'missing_alert'
+          ? alert.petName || alert.title.replace(/^Missing:\s*/i, '')
+          : sighting?.catNameHint;
+      onOpenReport(linkedCatHint);
     }
   };
 
@@ -74,7 +80,7 @@ export const SignalDetailModal: React.FC<SignalDetailModalProps> = ({
       onRequestClose={onClose}
     >
       <View style={styles.modalOverlay}>
-        <View style={styles.sheetContainer}>
+        <View style={[styles.sheetContainer, { paddingBottom: Math.max(insets.bottom, 24) }]}>
           {/* Top Grabber */}
           <View style={styles.dragHandle} />
 
@@ -104,6 +110,8 @@ export const SignalDetailModal: React.FC<SignalDetailModalProps> = ({
               onPress={onClose}
               style={styles.closeButton}
               activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel="Close signal details"
               hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
             >
               <Ionicons name="close" size={22} color={Colors.textSecondary} />

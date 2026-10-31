@@ -90,10 +90,10 @@ ALTER FUNCTION public.handle_new_user() SET search_path = public, extensions;
 REVOKE ALL ON FUNCTION public.handle_new_user() FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.rls_auto_enable() FROM PUBLIC;
 
--- Paid emergency alerts can only be executed by authenticated users or service role
-REVOKE ALL ON FUNCTION public.activate_amber_alert(uuid, uuid, text, numeric) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.activate_amber_alert(uuid, uuid, text, numeric) TO authenticated, service_role;
+-- Paid emergency alerts can only be executed by service_role (verified Stripe webhook)
+REVOKE ALL ON FUNCTION public.activate_amber_alert(uuid, uuid, text, numeric) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.activate_amber_alert(uuid, uuid, text, numeric) TO service_role;
 
--- Internal sighting matching logic is restricted from anon direct execution
-REVOKE ALL ON FUNCTION public.match_sighting_to_missing_cats(uuid, double precision) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.match_sighting_to_missing_cats(uuid, double precision) TO authenticated, service_role;
+-- Internal sighting matching logic is restricted to service_role to prevent home_location trilateration
+REVOKE ALL ON FUNCTION public.match_sighting_to_missing_cats(uuid, double precision) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.match_sighting_to_missing_cats(uuid, double precision) TO service_role;

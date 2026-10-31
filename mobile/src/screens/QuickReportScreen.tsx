@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,8 @@ import {
   Switch,
   Alert,
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
@@ -35,10 +37,9 @@ export const QuickReportScreen: React.FC<QuickReportScreenProps> = ({
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [loadingMedia, setLoadingMedia] = useState(false);
   const [locationName, setLocationName] = useState('Detecting current location...');
-  const [coords, setCoords] = useState<{ latitude: number; longitude: number }>({
-    latitude: 51.5375,
-    longitude: -0.0392,
-  });
+  const [manualLocationText, setManualLocationText] = useState('');
+  const [coords, setCoords] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [locationAvailable, setLocationAvailable] = useState<boolean | null>(null);
   const [hasExifGps, setHasExifGps] = useState(false);
   const [privacyShieldActive, setPrivacyShieldActive] = useState(true);
   const [selectedCoat, setSelectedCoat] = useState<string>(COAT_PRESETS[0]);
@@ -84,24 +85,46 @@ export const QuickReportScreen: React.FC<QuickReportScreenProps> = ({
 
         // Check for EXIF GPS metadata
         if (asset.exif && asset.exif.GPSLatitude && asset.exif.GPSLongitude) {
-          const lat = asset.exif.GPSLatitude;
-          const lon = asset.exif.GPSLongitude;
+          const lat = Number(asset.exif.GPSLatitude);
+          const lon = Number(asset.exif.GPSLongitude);
           setCoords({ latitude: lat, longitude: lon });
+          setLocationAvailable(true);
           setHasExifGps(true);
-          setLocationName(`Extracted from photo EXIF (${lat.toFixed(4)}, ${lon.toFixed(4)})`);
-        } else {
-          // Fall back to device location
+          await resolveAreaLabel(lat, lon, 'Photo EXIF location acquired');
+        } else if (!coords) {
           fetchCurrentDeviceLocation();
         }
       }
     } catch (err) {
       console.warn('Image capture error:', err);
-      // Fallback placeholder photo for simulator / test environment
-      setPhotoUri('https://images.unsplash.com/photo-1543852786-1cf6624b9987?w=600&auto=format&fit=crop&q=80');
-      fetchCurrentDeviceLocation();
+      Alert.alert(
+        'Camera Unavailable',
+        useCamera
+          ? 'Could not open the camera on this device. Please try uploading a photo from your library instead.'
+          : 'Could not open the photo library. Please check permissions and try again.'
+      );
     } finally {
       setLoadingMedia(false);
     }
+  };
+
+  const resolveAreaLabel = async (lat: number, lon: number, fallbackLabel: string) => {
+    try {
+      const places = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lon });
+      if (places && places[0]) {
+        const p = places[0];
+        const parts = [p.street || p.name, p.district || p.subregion || p.city, p.postalCode]
+          .filter(Boolean)
+          .slice(0, 2);
+        if (parts.length > 0) {
+          setLocationName(`Near ${parts.join(', ')}`);
+          return;
+        }
+      }
+    } catch {
+      // Reverse geocoding optional
+    }
+    setLocationName(fallbackLabel);
   };
 
   const fetchCurrentDeviceLocation = async () => {
@@ -109,18 +132,24 @@ export const QuickReportScreen: React.FC<QuickReportScreenProps> = ({
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status === 'granted') {
         const loc = await Location.getCurrentPositionAsync({});
-        setCoords({
-          latitude: loc.coords.latitude,
-          longitude: loc.coords.longitude,
-        });
-        setLocationName(`Near ${loc.coords.latitude.toFixed(4)}, ${loc.coords.longitude.toFixed(4)}`);
+        const lat = loc.coords.latitude;
+        const lon = loc.coords.longitude;
+        setCoords({ latitude: lat, longitude: lon });
+        setLocationAvailable(true);
+        await resolveAreaLabel(lat, lon, 'Current GPS location acquired (200m buffered)');
       } else {
-        setLocationName('Victoria Park Vicinity, London E9');
+        setLocationAvailable(false);
+        setLocationName('GPS permission off — enter street or area below');
       }
-    } catch (e) {
-      setLocationName('Victoria Park Vicinity, London E9');
+    } catch {
+      setLocationAvailable(false);
+      setLocationName('GPS unavailable — enter street or area below');
     }
   };
+
+  useEffect(() => {
+    fetchCurrentDeviceLocation();
+  }, []);
 
   const handleSubmit = () => {
     if (!photoUri) {
@@ -128,11 +157,22 @@ export const QuickReportScreen: React.FC<QuickReportScreenProps> = ({
       return;
     }
 
+    const finalLocationLabel = manualLocationText.trim() || (coords ? locationName : '');
+    if (!finalLocationLabel) {
+      Alert.alert(
+        'Location Needed',
+        'Please enable location access or enter the street / neighbourhood where you spotted the cat.'
+      );
+      return;
+    }
+
     setSubmitting(true);
 
-    const jittered = privacyShieldActive
-      ? applyPrivacyShield(coords.latitude, coords.longitude)
-      : { latitude: coords.latitude, longitude: coords.longitude, offsetMeters: 0 };
+    const baseCoords = coords || { latitude: 0, longitude: 0 };
+    const jittered =
+      coords && privacyShieldActive
+        ? applyPrivacyShield(baseCoords.latitude, baseCoords.longitude)
+        : { latitude: baseCoords.latitude, longitude: baseCoords.longitude, offsetMeters: 0 };
 
     const newReport: SightingReport = {
       id: `sighting-${Date.now()}`,
@@ -140,12 +180,12 @@ export const QuickReportScreen: React.FC<QuickReportScreenProps> = ({
       photoUri,
       timestamp: new Date().toISOString(),
       reportedAtDisplay: 'Just now',
-      coords,
+      coords: baseCoords,
       jitteredCoords: {
         latitude: jittered.latitude,
         longitude: jittered.longitude,
       },
-      approximateLocationName: locationName,
+      approximateLocationName: finalLocationLabel,
       coatColour: selectedCoat,
       coatColor: selectedCoat,
       collarDescription: hasCollar ? collarNotes || 'Collar observed' : 'No collar visible',
@@ -161,7 +201,15 @@ export const QuickReportScreen: React.FC<QuickReportScreenProps> = ({
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.content}
+      keyboardShouldPersistTaps="handled"
+    >
       {/* Active Alert Matching Banner */}
       {initialCatHint && (
         <View style={styles.matchingBanner}>
@@ -191,12 +239,24 @@ export const QuickReportScreen: React.FC<QuickReportScreenProps> = ({
       {photoUri ? (
         <View style={styles.photoPreviewWrapper}>
           <Image source={{ uri: photoUri }} style={styles.photoPreview} />
-          <TouchableOpacity
-            style={styles.retakeButton}
-            onPress={() => handleCapturePhoto(true)}
-          >
-            <Text style={styles.retakeText}>Retake Photo</Text>
-          </TouchableOpacity>
+          <View style={styles.photoActionOverlayRow}>
+            <TouchableOpacity
+              style={styles.retakeButton}
+              onPress={() => handleCapturePhoto(true)}
+              accessibilityRole="button"
+              accessibilityLabel="Retake photo with camera"
+            >
+              <Text style={styles.retakeText}>Retake Photo</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.retakeButton}
+              onPress={() => handleCapturePhoto(false)}
+              accessibilityRole="button"
+              accessibilityLabel="Choose a different photo from library"
+            >
+              <Text style={styles.retakeText}>Choose Library</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       ) : (
         <View style={styles.photoButtonRow}>
@@ -238,6 +298,18 @@ export const QuickReportScreen: React.FC<QuickReportScreenProps> = ({
             )}
           </View>
         </View>
+
+        <TextInput
+          style={[styles.textInput, { marginTop: 10 }]}
+          placeholder={
+            locationAvailable === false
+              ? 'Enter street, park, or postcode (required)...'
+              : 'Optional: add street or landmark name (e.g. Near St. Mark’s Gate)'
+          }
+          value={manualLocationText}
+          onChangeText={setManualLocationText}
+          placeholderTextColor={Colors.textMuted}
+        />
 
         <View style={styles.divider} />
 
@@ -352,6 +424,7 @@ export const QuickReportScreen: React.FC<QuickReportScreenProps> = ({
 
       <View style={{ height: 40 }} />
     </ScrollView>
+    </KeyboardAvoidingView>
   );
 };
 
@@ -486,13 +559,17 @@ const styles = StyleSheet.create({
     height: 220,
     backgroundColor: '#f1f5f9',
   },
-  retakeButton: {
+  photoActionOverlayRow: {
     position: 'absolute',
     bottom: 12,
     right: 12,
-    backgroundColor: 'rgba(15, 23, 42, 0.8)',
+    flexDirection: 'row',
+    gap: 8,
+  },
+  retakeButton: {
+    backgroundColor: 'rgba(15, 23, 42, 0.85)',
     paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingVertical: 8,
     borderRadius: 8,
   },
   retakeText: {
