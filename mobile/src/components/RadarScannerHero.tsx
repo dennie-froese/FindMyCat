@@ -1,9 +1,18 @@
-import React, { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Animated, Easing } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ActivityIndicator,
+  Platform,
+} from 'react-native';
+import MapView, { Marker, Circle, Region } from 'react-native-maps';
+import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../theme/colors';
 import { CommunityAlert, SightingReport } from '../types';
-import { DEFAULT_RADAR_CENTER, projectCoordsToRadar } from '../services/radarGeometry';
+import { DEFAULT_RADAR_CENTER, GeoCoordinates } from '../services/radarGeometry';
 
 interface RadarScannerHeroProps {
   activeSignalsCount: number;
@@ -20,202 +29,263 @@ export const RadarScannerHero: React.FC<RadarScannerHeroProps> = ({
   onExploreMap,
   onSelectSignal,
 }) => {
-  const sweepAnim = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.timing(sweepAnim, {
-        toValue: 1,
-        duration: 6000,
-        easing: Easing.linear,
-        useNativeDriver: true,
-      })
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [sweepAnim]);
-
-  const sweepRotation = sweepAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['0deg', '360deg'],
+  const mapRef = useRef<MapView | null>(null);
+  const [userCoords, setUserCoords] = useState<GeoCoordinates | null>(null);
+  const [locating, setLocating] = useState<boolean>(true);
+  const [areaLabel, setAreaLabel] = useState<string>('Locating your neighbourhood...');
+  const [region, setRegion] = useState<Region>({
+    latitude: DEFAULT_RADAR_CENTER.latitude,
+    longitude: DEFAULT_RADAR_CENTER.longitude,
+    latitudeDelta: 0.025,
+    longitudeDelta: 0.025,
   });
 
-  const centerCoords =
-    alerts[0]?.coords ||
-    sightings[0]?.jitteredCoords ||
-    sightings[0]?.coords ||
-    DEFAULT_RADAR_CENTER;
+  const centerOnUserLocation = async (animate: boolean = true) => {
+    setLocating(true);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        setAreaLabel('Location access off — enable in Settings');
+        setLocating(false);
+        return;
+      }
+
+      // Fast initial fix from last known position if available
+      const lastKnown = await Location.getLastKnownPositionAsync();
+      if (lastKnown?.coords) {
+        const fastRegion: Region = {
+          latitude: lastKnown.coords.latitude,
+          longitude: lastKnown.coords.longitude,
+          latitudeDelta: 0.02,
+          longitudeDelta: 0.02,
+        };
+        setUserCoords({
+          latitude: lastKnown.coords.latitude,
+          longitude: lastKnown.coords.longitude,
+        });
+        setRegion(fastRegion);
+        if (animate && mapRef.current) {
+          mapRef.current.animateToRegion(fastRegion, 400);
+        }
+      }
+
+      // Fresh high-accuracy GPS fix
+      const current = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+      const liveCoords = {
+        latitude: current.coords.latitude,
+        longitude: current.coords.longitude,
+      };
+      const nextRegion: Region = {
+        latitude: liveCoords.latitude,
+        longitude: liveCoords.longitude,
+        latitudeDelta: 0.02,
+        longitudeDelta: 0.02,
+      };
+      setUserCoords(liveCoords);
+      setRegion(nextRegion);
+      if (mapRef.current) {
+        mapRef.current.animateToRegion(nextRegion, 500);
+      }
+
+      // Resolve human-readable neighbourhood label
+      try {
+        const places = await Location.reverseGeocodeAsync(liveCoords);
+        if (places && places[0]) {
+          const p = places[0];
+          const labelParts = [p.street || p.district || p.subregion, p.city || p.postalCode]
+            .filter(Boolean)
+            .slice(0, 2);
+          if (labelParts.length > 0) {
+            setAreaLabel(labelParts.join(', '));
+          } else {
+            setAreaLabel('Live GPS Active');
+          }
+        } else {
+          setAreaLabel('Live GPS Active');
+        }
+      } catch {
+        setAreaLabel('Live GPS Active');
+      }
+    } catch {
+      setAreaLabel('Tap Locate to center on your GPS');
+    } finally {
+      setLocating(false);
+    }
+  };
+
+  useEffect(() => {
+    centerOnUserLocation(false);
+  }, []);
+
+  const activeCenter = userCoords || {
+    latitude: region.latitude,
+    longitude: region.longitude,
+  };
 
   return (
     <View style={styles.container}>
-      {/* Tappable Radar Canvas Card */}
-      <TouchableOpacity
-        style={styles.radarCard}
-        activeOpacity={0.92}
-        onPress={onExploreMap}
-        accessibilityRole="button"
-        accessibilityLabel="Expand interactive neighbourhood radar map"
-      >
-        {/* Concentric Radar Rings */}
-        <View style={styles.outerRing} pointerEvents="none">
-          <View style={styles.midRing}>
-            <View style={styles.innerRing}>
-              {/* Rotating Radar Sweep */}
-              <Animated.View
-                style={[
-                  styles.sweepWrapper,
-                  { transform: [{ rotate: sweepRotation }] },
-                ]}
-              >
-                <View style={styles.sweepBeam} />
-              </Animated.View>
+      <View style={styles.mapCard}>
+        <MapView
+          ref={mapRef}
+          style={styles.mapView}
+          initialRegion={region}
+          onRegionChangeComplete={(nextRegion) => setRegion(nextRegion)}
+          showsUserLocation={true}
+          showsMyLocationButton={false}
+          showsCompass={true}
+          scrollEnabled={true}
+          zoomEnabled={true}
+          pitchEnabled={true}
+          rotateEnabled={true}
+          userInterfaceStyle="light"
+        >
+          {/* 2-Mile Neighbourhood Radar Perimeter around User */}
+          {userCoords && (
+            <Circle
+              center={userCoords}
+              radius={3218.68}
+              strokeColor="rgba(240, 90, 62, 0.45)"
+              fillColor="rgba(240, 90, 62, 0.05)"
+              strokeWidth={1.5}
+            />
+          )}
 
-              {/* User Center Pulse */}
-              <View style={styles.centerDot}>
-                <View style={styles.centerPulse} />
-              </View>
-            </View>
-          </View>
-        </View>
+          {/* Community Alerts (200m Geo-Shield + Marker) */}
+          {alerts.map((alert) => {
+            const isMissing = alert.type === 'missing_alert' && alert.status !== 'safe';
+            const isTnr = alert.type === 'tnr_colony';
+            const strokeColor = isMissing
+              ? 'rgba(239, 68, 68, 0.7)'
+              : isTnr
+              ? 'rgba(16, 185, 129, 0.7)'
+              : 'rgba(245, 158, 11, 0.7)';
+            const fillColor = isMissing
+              ? 'rgba(239, 68, 68, 0.18)'
+              : isTnr
+              ? 'rgba(16, 185, 129, 0.18)'
+              : 'rgba(245, 158, 11, 0.18)';
+            const pinBg = isMissing ? '#ef4444' : isTnr ? '#10b981' : '#f59e0b';
 
-        {/* Dynamically Projected Alert Blips */}
-        {alerts.slice(0, 4).map((alert) => {
-          const proj = projectCoordsToRadar(alert.coords, centerCoords, 1.0, 0.72);
-          const isMissing = alert.type === 'missing_alert' && alert.status !== 'safe';
-          const isTnr = alert.type === 'tnr_colony';
-
-          return (
-            <TouchableOpacity
-              key={alert.id}
-              activeOpacity={0.8}
-              onPress={() => {
-                if (onSelectSignal) {
-                  onSelectSignal(alert);
-                } else if (onExploreMap) {
-                  onExploreMap();
-                }
-              }}
-              style={[
-                styles.blipContainer,
-                {
-                  left: `${Math.min(82, Math.max(12, proj.leftPercent))}%`,
-                  top: `${Math.min(72, Math.max(28, proj.topPercent))}%`,
-                },
-              ]}
-              accessibilityRole="button"
-              accessibilityLabel={`Radar signal: ${alert.title}`}
-            >
-              <View
-                style={[
-                  styles.blipDot,
-                  isMissing
-                    ? styles.blipRed
-                    : isTnr
-                    ? styles.blipGreen
-                    : styles.blipAmber,
-                ]}
-              />
-              <View
-                style={
-                  isMissing
-                    ? styles.blipTagRed
-                    : isTnr
-                    ? styles.blipTagGreen
-                    : styles.blipTagAmber
-                }
-              >
-                <Text
-                  style={
-                    isMissing
-                      ? styles.blipTagTextRed
-                      : isTnr
-                      ? styles.blipTagTextGreen
-                      : styles.blipTagTextAmber
-                  }
-                  numberOfLines={1}
+            return (
+              <React.Fragment key={alert.id}>
+                <Circle
+                  center={alert.coords}
+                  radius={200}
+                  strokeColor={strokeColor}
+                  fillColor={fillColor}
+                  strokeWidth={1.5}
+                />
+                <Marker
+                  coordinate={alert.coords}
+                  title={alert.title}
+                  description={alert.subtitle}
+                  onPress={() => onSelectSignal?.(alert)}
                 >
-                  {alert.petName || (isTnr ? 'TNR Colony' : 'Sighting')} ({alert.distanceMiles} mi)
-                </Text>
-              </View>
-            </TouchableOpacity>
-          );
-        })}
+                  <View style={[styles.markerBadge, { backgroundColor: pinBg }]}>
+                    <Ionicons
+                      name={isMissing ? 'warning' : isTnr ? 'shield-checkmark' : 'paw'}
+                      size={13}
+                      color="#ffffff"
+                    />
+                  </View>
+                </Marker>
+              </React.Fragment>
+            );
+          })}
 
-        {/* Dynamically Projected Sighting Blips */}
-        {sightings.slice(0, 3).map((sighting) => {
-          const coords = sighting.jitteredCoords || sighting.coords;
-          const proj = projectCoordsToRadar(coords, centerCoords, 1.0, 0.72);
+          {/* Anonymous Sightings (200m Geo-Shield + Marker) */}
+          {sightings.map((sighting) => {
+            const targetCoords = sighting.jitteredCoords || sighting.coords;
+            return (
+              <React.Fragment key={sighting.id}>
+                <Circle
+                  center={targetCoords}
+                  radius={200}
+                  strokeColor="rgba(37, 99, 235, 0.7)"
+                  fillColor="rgba(37, 99, 235, 0.16)"
+                  strokeWidth={1.5}
+                />
+                <Marker
+                  coordinate={targetCoords}
+                  title={sighting.catNameHint || sighting.coatColour || 'Spotted Cat'}
+                  description={sighting.approximateLocationName}
+                  onPress={() => onSelectSignal?.(sighting)}
+                >
+                  <View style={[styles.markerBadge, { backgroundColor: '#2563eb' }]}>
+                    <Ionicons name="eye" size={13} color="#ffffff" />
+                  </View>
+                </Marker>
+              </React.Fragment>
+            );
+          })}
+        </MapView>
 
-          return (
+        {/* Top Status Bar Overlay */}
+        <View style={styles.topOverlay} pointerEvents="box-none">
+          <View style={styles.locationChip}>
+            <View style={styles.liveGreenDot} />
+            <Text style={styles.locationChipText} numberOfLines={1}>
+              {areaLabel}
+            </Text>
+          </View>
+
+          <View style={styles.topRightActions}>
             <TouchableOpacity
-              key={sighting.id}
+              style={styles.iconActionBtn}
+              onPress={() => centerOnUserLocation(true)}
               activeOpacity={0.8}
-              onPress={() => {
-                if (onSelectSignal) {
-                  onSelectSignal(sighting);
-                } else if (onExploreMap) {
-                  onExploreMap();
-                }
-              }}
-              style={[
-                styles.blipContainer,
-                {
-                  left: `${Math.min(82, Math.max(12, proj.leftPercent))}%`,
-                  top: `${Math.min(74, Math.max(30, proj.topPercent))}%`,
-                },
-              ]}
               accessibilityRole="button"
-              accessibilityLabel={`Radar sighting: ${sighting.catNameHint || 'Spotted Cat'}`}
+              accessibilityLabel="Center map on my location"
             >
-              <View style={[styles.blipDot, styles.blipAmber]} />
-              <View style={styles.blipTagAmber}>
-                <Text style={styles.blipTagTextAmber} numberOfLines={1}>
-                  {sighting.catNameHint || 'Sighting'} ({sighting.reportedAtDisplay})
-                </Text>
-              </View>
+              {locating ? (
+                <ActivityIndicator size="small" color={Colors.primary} />
+              ) : (
+                <Ionicons name="locate" size={17} color={Colors.primary} />
+              )}
             </TouchableOpacity>
-          );
-        })}
 
-        {/* Radar Overlay Header */}
-        <View style={styles.headerOverlay} pointerEvents="none">
-          <View style={styles.badgeRow}>
-            <View style={styles.radarIndicator}>
-              <View style={styles.liveGreenDot} />
-              <Text style={styles.radarIndicatorText}>SCANNING LOCAL AREA</Text>
-            </View>
-            <View style={styles.radiusBadgeRow}>
-              <Text style={styles.radiusText}>2.0 MI RADIUS</Text>
-              <Ionicons name="expand-outline" size={13} color="#38bdf8" />
-            </View>
+            {onExploreMap && (
+              <TouchableOpacity
+                style={styles.iconActionBtn}
+                onPress={onExploreMap}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel="Open full screen map"
+              >
+                <Ionicons name="expand" size={17} color={Colors.textPrimary} />
+              </TouchableOpacity>
+            )}
           </View>
-          <Text style={styles.heroSignalText}>
-            {activeSignalsCount === 0
-              ? 'All quiet nearby — tap to explore map or drop a pin'
-              : `${activeSignalsCount} active feline ${activeSignalsCount === 1 ? 'signal' : 'signals'} detected nearby`}
-          </Text>
         </View>
 
-        {/* Radar Footer Overlay */}
-        <View style={styles.footerOverlay}>
-          <View style={styles.privacyShieldPill}>
-            <Ionicons name="shield-checkmark" size={12} color="#a5b4fc" />
-            <Text style={styles.privacyShieldText}>200m Geo-Shield</Text>
+        {/* Bottom Overlay Bar */}
+        <View style={styles.bottomOverlay} pointerEvents="box-none">
+          <View style={styles.privacyShieldPill} pointerEvents="none">
+            <Ionicons name="shield-checkmark" size={12} color="#4f46e5" />
+            <Text style={styles.privacyShieldText}>
+              {activeSignalsCount === 0
+                ? '200m Geo-Shield • All clear nearby'
+                : `${activeSignalsCount} ${activeSignalsCount === 1 ? 'signal' : 'signals'} • 200m Geo-Shield`}
+            </Text>
           </View>
 
-          <TouchableOpacity
-            style={styles.expandMapPill}
-            onPress={onExploreMap}
-            activeOpacity={0.8}
-            accessibilityRole="button"
-            accessibilityLabel="Expand Interactive Map and Drop Pin"
-          >
-            <Ionicons name="map" size={12} color="#ffffff" />
-            <Text style={styles.expandMapPillText}>Expand Map & Drop Pin</Text>
-            <Ionicons name="chevron-forward" size={12} color="#ffffff" />
-          </TouchableOpacity>
+          {onExploreMap && (
+            <TouchableOpacity
+              style={styles.expandMapPill}
+              onPress={onExploreMap}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel="Full screen map and drop sighting pin"
+            >
+              <Ionicons name="map" size={12} color="#ffffff" />
+              <Text style={styles.expandMapPillText}>Full Map & Drop Pin</Text>
+              <Ionicons name="chevron-forward" size={12} color="#ffffff" />
+            </TouchableOpacity>
+          )}
         </View>
-      </TouchableOpacity>
+      </View>
     </View>
   );
 };
@@ -226,217 +296,137 @@ const styles = StyleSheet.create({
     paddingTop: 10,
     paddingBottom: 4,
   },
-  radarCard: {
-    backgroundColor: '#090d16',
+  mapCard: {
+    backgroundColor: '#e2e8f0',
     borderRadius: 20,
-    height: 204,
+    height: 260,
     overflow: 'hidden',
     position: 'relative',
     borderWidth: 1,
-    borderColor: '#1e293b',
-    shadowColor: '#000',
+    borderColor: '#cbd5e1',
+    shadowColor: '#0f172a',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
+    shadowOpacity: 0.1,
     shadowRadius: 10,
     elevation: 4,
   },
-  outerRing: {
+  mapView: {
     position: 'absolute',
-    top: -24,
-    left: '50%',
-    marginLeft: -130,
-    width: 260,
-    height: 260,
-    borderRadius: 130,
-    borderWidth: 1,
-    borderColor: 'rgba(56, 189, 248, 0.14)',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+  },
+  markerBadge: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  midRing: {
-    width: 180,
-    height: 180,
-    borderRadius: 90,
-    borderWidth: 1,
-    borderColor: 'rgba(56, 189, 248, 0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  innerRing: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    borderWidth: 1,
-    borderColor: 'rgba(56, 189, 248, 0.28)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  sweepWrapper: {
-    position: 'absolute',
-    width: 220,
-    height: 220,
-    alignItems: 'center',
-    justifyContent: 'flex-start',
-  },
-  sweepBeam: {
-    width: 2,
-    height: 110,
-    backgroundColor: 'rgba(56, 189, 248, 0.35)',
-  },
-  centerDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: '#38bdf8',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  centerPulse: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    borderWidth: 1.5,
-    borderColor: 'rgba(56, 189, 248, 0.5)',
-  },
-  blipContainer: {
-    position: 'absolute',
-    alignItems: 'center',
-    gap: 3,
-    transform: [{ translateX: -36 }, { translateY: -12 }],
-  },
-  blipDot: {
-    width: 11,
-    height: 11,
-    borderRadius: 6,
-    borderWidth: 1.5,
+    borderWidth: 2,
     borderColor: '#ffffff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 4,
   },
-  blipRed: {
-    backgroundColor: '#ef4444',
-  },
-  blipAmber: {
-    backgroundColor: '#f59e0b',
-  },
-  blipGreen: {
-    backgroundColor: '#10b981',
-  },
-  blipTagRed: {
-    backgroundColor: 'rgba(239, 68, 68, 0.92)',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  blipTagTextRed: {
-    color: '#ffffff',
-    fontSize: 9,
-    fontWeight: '800',
-  },
-  blipTagAmber: {
-    backgroundColor: 'rgba(245, 158, 11, 0.92)',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  blipTagTextAmber: {
-    color: '#ffffff',
-    fontSize: 9,
-    fontWeight: '800',
-  },
-  blipTagGreen: {
-    backgroundColor: 'rgba(16, 185, 129, 0.92)',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  blipTagTextGreen: {
-    color: '#ffffff',
-    fontSize: 9,
-    fontWeight: '800',
-  },
-  headerOverlay: {
+  topOverlay: {
     position: 'absolute',
-    top: 12,
-    left: 14,
-    right: 14,
-  },
-  badgeRow: {
+    top: 10,
+    left: 10,
+    right: 10,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: 8,
   },
-  radarIndicator: {
+  locationChip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: 'rgba(15, 23, 42, 0.78)',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.94)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: 'rgba(226, 232, 240, 0.9)',
+    maxWidth: '68%',
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
   },
   liveGreenDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
     backgroundColor: '#10b981',
   },
-  radarIndicatorText: {
-    color: '#94a3b8',
-    fontSize: 9,
-    fontWeight: '800',
-    letterSpacing: 0.6,
+  locationChipText: {
+    color: Colors.textPrimary,
+    fontSize: 11,
+    fontWeight: '700',
   },
-  radiusBadgeRow: {
+  topRightActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 6,
   },
-  radiusText: {
-    color: '#94a3b8',
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 0.5,
+  iconActionBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 11,
+    backgroundColor: 'rgba(255, 255, 255, 0.94)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(226, 232, 240, 0.9)',
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  heroSignalText: {
-    color: '#f8fafc',
-    fontSize: 13,
-    fontWeight: '700',
-    marginTop: 6,
-    letterSpacing: -0.2,
-  },
-  footerOverlay: {
+  bottomOverlay: {
     position: 'absolute',
     bottom: 10,
-    left: 14,
-    right: 14,
+    left: 10,
+    right: 10,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: 8,
   },
   privacyShieldPill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    backgroundColor: 'rgba(30, 41, 59, 0.85)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.94)',
+    paddingHorizontal: 9,
+    paddingVertical: 5,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: 'rgba(99, 102, 241, 0.25)',
+    borderColor: '#e0e7ff',
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 3,
+    elevation: 2,
   },
   privacyShieldText: {
-    color: '#c7d2fe',
+    color: '#3730a3',
     fontSize: 10,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   expandMapPill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
     backgroundColor: Colors.primary,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingHorizontal: 11,
+    paddingVertical: 6,
     borderRadius: 10,
     shadowColor: Colors.primary,
     shadowOffset: { width: 0, height: 2 },
@@ -446,7 +436,7 @@ const styles = StyleSheet.create({
   },
   expandMapPillText: {
     color: '#ffffff',
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '800',
   },
 });
