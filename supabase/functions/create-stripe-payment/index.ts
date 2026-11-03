@@ -66,6 +66,16 @@ serve(async (req: Request) => {
       );
     }
 
+    if (!catId || typeof catId !== "string" || !catId.trim()) {
+      return new Response(
+        JSON.stringify({ error: "Missing required field: catId." }),
+        { status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      );
+    }
+
+    const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const validCatId = UUID_REGEX.test(catId.trim()) ? catId.trim() : null;
+
     const product = PRODUCT_CONFIG.amber_alert;
 
     // If Stripe secret key is configured, create live Stripe Checkout Session
@@ -81,7 +91,7 @@ serve(async (req: Request) => {
       stripeBody.append("client_reference_id", userId || "anonymous");
 
       stripeBody.append("metadata[productType]", "amber_alert");
-      stripeBody.append("metadata[catId]", catId);
+      stripeBody.append("metadata[catId]", catId.trim());
       if (catName) stripeBody.append("metadata[catName]", catName);
 
       stripeBody.append("line_items[0][price_data][currency]", "gbp");
@@ -111,14 +121,14 @@ serve(async (req: Request) => {
       // Record transaction in Supabase
       await supabaseClient.from("payment_transactions").insert({
         user_id: userId,
-        cat_id: catId,
+        cat_id: validCatId,
         product_type: "amber_alert_broadcast",
         provider: "stripe",
         amount_pence: product.amountPence,
         currency: "gbp",
         stripe_checkout_session_id: session.id,
         status: "pending",
-        metadata: { catName, live: true },
+        metadata: { catId: catId.trim(), catName, live: true },
       });
 
       return new Response(
@@ -141,7 +151,7 @@ serve(async (req: Request) => {
     // Record mock transaction in database
     await supabaseClient.from("payment_transactions").insert({
       user_id: userId,
-      cat_id: catId,
+      cat_id: validCatId,
       product_type: "amber_alert_broadcast",
       provider: "stripe",
       amount_pence: product.amountPence,
@@ -149,7 +159,7 @@ serve(async (req: Request) => {
       stripe_checkout_session_id: mockSessionId,
       stripe_payment_intent_id: mockPaymentIntentId,
       status: "pending",
-      metadata: { catName, sandbox: true },
+      metadata: { catId: catId.trim(), catName, sandbox: true },
     });
 
     return new Response(

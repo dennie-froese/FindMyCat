@@ -14,6 +14,43 @@ const CORS_HEADERS = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const DEFAULT_RATE_LIMIT_MAX = 10;
+const rateLimitStore = new Map<string, number[]>();
+
+export function resetRateLimitStore(): void {
+  rateLimitStore.clear();
+}
+
+function checkRateLimit(key: string, maxRequests: number, now = Date.now()): { allowed: boolean; retryAfterSec: number } {
+  const windowStart = now - RATE_LIMIT_WINDOW_MS;
+  const timestamps = (rateLimitStore.get(key) ?? []).filter((t) => t > windowStart);
+  if (timestamps.length >= maxRequests) {
+    const oldestInWindow = timestamps[0];
+    const retryAfterSec = Math.max(1, Math.ceil((oldestInWindow + RATE_LIMIT_WINDOW_MS - now) / 1000));
+    rateLimitStore.set(key, timestamps);
+    return { allowed: false, retryAfterSec };
+  }
+  timestamps.push(now);
+  rateLimitStore.set(key, timestamps);
+  return { allowed: true, retryAfterSec: 0 };
+}
+
+function isValidCoordinateInput(val: unknown): boolean {
+  if (typeof val === "number") return Number.isFinite(val);
+  if (typeof val === "string" && val.trim() !== "") return Number.isFinite(Number(val));
+  return false;
+}
+
+function isSafePhotoUrl(url: unknown): url is string {
+  if (typeof url !== "string") return false;
+  const trimmed = url.trim();
+  if (!trimmed) return false;
+  if (/^(javascript|vbscript):/i.test(trimmed)) return false;
+  if (/^data:(?!image\/)/i.test(trimmed)) return false;
+  return true;
+}
+
 interface ReportSightingPayload {
   catId?: string;
   catNameHint?: string;
@@ -53,6 +90,11 @@ serve(async (req: Request) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
     const turnstileSecret = Deno.env.get("TURNSTILE_SECRET_KEY");
+    const configuredRateLimit = Number(Deno.env.get("RATE_LIMIT_MAX_REQUESTS"));
+    const maxRequestsPerMinute =
+      Number.isFinite(configuredRateLimit) && configuredRateLimit > 0
+        ? configuredRateLimit
+        : DEFAULT_RATE_LIMIT_MAX;
 
     // Client authenticated with the caller's JWT
     const supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
@@ -68,6 +110,27 @@ serve(async (req: Request) => {
       return new Response(
         JSON.stringify({ error: "Invalid user session. Re-authenticate anonymously.", details: userError }),
         { status: 401, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      );
+    }
+
+    // 2b. Per-user / per-IP sliding-window rate limit check
+    const clientIp = (req.headers.get("cf-connecting-ip") ?? req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim();
+    const rateLimitKey = clientIp ? `${user.id}:${clientIp}` : user.id;
+    const rateStatus = checkRateLimit(rateLimitKey, maxRequestsPerMinute);
+    if (!rateStatus.allowed) {
+      return new Response(
+        JSON.stringify({
+          error: "Too many sighting reports submitted recently. Please wait before submitting again.",
+          retryAfterSeconds: rateStatus.retryAfterSec,
+        }),
+        {
+          status: 429,
+          headers: {
+            ...CORS_HEADERS,
+            "Content-Type": "application/json",
+            "Retry-After": String(rateStatus.retryAfterSec),
+          },
+        }
       );
     }
 
@@ -87,12 +150,25 @@ serve(async (req: Request) => {
     } = body;
 
     // Validate essential coordinates & media
-    if (latitude == null || longitude == null || !photoUrl) {
+    const latNum = Number(latitude);
+    const lonNum = Number(longitude);
+    if (
+      !isValidCoordinateInput(latitude) ||
+      !isValidCoordinateInput(longitude) ||
+      latNum < -90 ||
+      latNum > 90 ||
+      lonNum < -180 ||
+      lonNum > 180 ||
+      !isSafePhotoUrl(photoUrl)
+    ) {
       return new Response(
-        JSON.stringify({ error: "Missing required fields: photoUrl, latitude, and longitude are mandatory." }),
+        JSON.stringify({ error: "Missing or invalid required fields: photoUrl, latitude [-90..90], and longitude [-180..180] are mandatory." }),
         { status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
       );
     }
+
+    const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const validCatId = catId && UUID_REGEX.test(catId) ? catId : null;
 
     // 3. Verify Cloudflare Turnstile Token (Option B: Free Anti-Abuse Perimeter)
     // In production with TURNSTILE_SECRET_KEY set, verify against Cloudflare's free /siteverify endpoint
@@ -134,14 +210,14 @@ serve(async (req: Request) => {
       .from("sightings")
       .insert({
         reporter_id: user.id, // Linked to the anonymous/permanent user (Option A)
-        cat_id: catId ?? null,
+        cat_id: validCatId,
         cat_name_hint: catNameHint ?? null,
         photo_url: photoUrl,
         coat_colour: coatColour ?? null,
         collar_description: collarDescription ?? null,
         notes: notes ?? null,
         approximate_location_name: approximateLocationName ?? "Spotted locally",
-        exact_location: `SRID=4326;POINT(${longitude} ${latitude})`,
+        exact_location: `SRID=4326;POINT(${lonNum} ${latNum})`,
         is_anonymous: user.is_anonymous ?? true,
         status: "unverified",
       })

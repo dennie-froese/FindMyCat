@@ -1,10 +1,12 @@
 {
   "name": "find-my-cat",
   "version": "1.0.0",
+  "type": "module",
   "description": "Find My Cat — Community-Powered Lost Pet Recovery Platform",
   "scripts": {
-    "test": "npm run test:web && npm run test:mobile",
+    "test": "npm run test:web && npm run test:edge && npm run test:mobile",
     "test:web": "node --test tests/web/web-runner.test.mjs",
+    "test:edge": "node --experimental-strip-types --test tests/edge/edge-functions.test.mjs",
     "test:mobile": "cd mobile && npm test",
     "test:simulator": "bash mobile/scripts/test-simulator.sh"
   },
