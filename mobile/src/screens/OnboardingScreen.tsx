@@ -18,6 +18,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { Colors } from '../theme/colors';
 import { CatProfile, UserRole } from '../types';
 import { requestNotificationPermissions } from '../services/reminderService';
+import { generateUuid } from '../services/sightingService';
 
 interface OnboardingScreenProps {
   onComplete: (data: { createdCat?: CatProfile; role: UserRole }) => void;
@@ -122,7 +123,7 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onComplete }
       // Only persist what the guardian actually told us. Unknown fields stay empty
       // so the passport and lost poster never show fabricated details.
       createdCat = {
-        id: `cat-${Date.now()}`,
+        id: generateUuid(),
         name: catName.trim(),
         breed: catBreed.trim() || 'Domestic Shorthair',
         coatColour: coatColour.trim(),

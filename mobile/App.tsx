@@ -27,6 +27,12 @@ import {
   setOnboardingCompleted,
 } from './src/services/storage';
 import { revenueCatService, REVENUECAT_CONFIG } from './src/services/revenueCatService';
+import { supabase } from './src/services/supabase';
+import {
+  isCloudSyncConfigured,
+  syncCatProfileToSupabase,
+  deleteCatProfileFromSupabase,
+} from './src/services/sightingService';
 
 import { Header } from './src/components/Header';
 import { SightingsFeedScreen } from './src/screens/SightingsFeedScreen';
@@ -153,6 +159,12 @@ function MainAppContent() {
     setCats(updatedCats);
     await saveCatProfiles(updatedCats);
 
+    if (isCloudSyncConfigured()) {
+      syncCatProfileToSupabase(supabase, updatedCat).catch((err) =>
+        console.warn('[App] Background cat cloud sync warning:', err)
+      );
+    }
+
     // If newly marked missing, broadcast 2-mile emergency Amber Alert, switch active cat, and jump to poster tab
     if (updatedCat.status === 'missing') {
       const updatedAlerts = await broadcastCatMissingAlert(updatedCat);
@@ -165,7 +177,7 @@ function MainAppContent() {
       }
     } else if (previousCat && previousCat.status === 'missing' && updatedCat.status === 'safe') {
       // Reunited journey: stand down alerts and trigger celebration modal
-      const updatedAlerts = await standDownCatAlerts(updatedCat.name);
+      const updatedAlerts = await standDownCatAlerts(updatedCat.name, updatedCat.id);
       if (updatedAlerts.length > 0) {
         setAlerts(updatedAlerts);
       }
@@ -177,12 +189,18 @@ function MainAppContent() {
     const updatedCats = await addCatProfile(newCat);
     setCats(updatedCats);
     setSelectedCatId(newCat.id);
+
+    if (isCloudSyncConfigured()) {
+      syncCatProfileToSupabase(supabase, newCat).catch((err) =>
+        console.warn('[App] Background new cat cloud sync warning:', err)
+      );
+    }
   };
 
   const handleDeleteCat = async (catId: string) => {
     const catToDelete = cats.find((c) => c.id === catId);
     if (catToDelete && catToDelete.status === 'missing') {
-      const updatedAlerts = await standDownCatAlerts(catToDelete.name);
+      const updatedAlerts = await standDownCatAlerts(catToDelete.name, catToDelete.id);
       if (updatedAlerts.length > 0) {
         setAlerts(updatedAlerts);
       }
@@ -191,6 +209,12 @@ function MainAppContent() {
     setCats(updatedCats);
     if (selectedCatId === catId) {
       setSelectedCatId(updatedCats.length > 0 ? updatedCats[0].id : '');
+    }
+
+    if (isCloudSyncConfigured()) {
+      deleteCatProfileFromSupabase(supabase, catId).catch((err) =>
+        console.warn('[App] Background delete cat cloud sync warning:', err)
+      );
     }
   };
 
@@ -209,6 +233,12 @@ function MainAppContent() {
       setCats(updatedCats);
       setSelectedCatId(createdCat.id);
       setActiveTab('passport');
+
+      if (isCloudSyncConfigured()) {
+        syncCatProfileToSupabase(supabase, createdCat).catch((err) =>
+          console.warn('[App] Background onboarding cat cloud sync warning:', err)
+        );
+      }
     } else if (role === 'spotter') {
       setActiveTab('feed');
     }

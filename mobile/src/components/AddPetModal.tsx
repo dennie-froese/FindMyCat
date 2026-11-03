@@ -18,6 +18,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { Colors } from '../theme/colors';
 import { CatProfile, VaccinationRecord } from '../types';
+import { generateUuid } from '../services/sightingService';
 
 interface AddPetModalProps {
   visible: boolean;
@@ -112,7 +113,7 @@ export const AddPetModal: React.FC<AddPetModalProps> = ({
     const parsedAge = parseInt(ageYears, 10);
 
     const newCat: CatProfile = {
-      id: `cat-${Date.now()}`,
+      id: generateUuid(),
       name: name.trim(),
       breed: breed.trim() || 'Domestic Shorthair',
       gender,

@@ -19,6 +19,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../theme/colors';
 import { SightingReport } from '../types';
 import { applyPrivacyShield } from '../services/privacyEngine';
+import { supabase } from '../services/supabase';
+import {
+  generateUuid,
+  isCloudSyncConfigured,
+  submitSightingWithProtection,
+} from '../services/sightingService';
 
 interface QuickReportScreenProps {
   onSubmitSighting: (report: SightingReport) => void;
@@ -168,7 +174,7 @@ export const QuickReportScreen: React.FC<QuickReportScreenProps> = ({
     }
   }, [isActive, locationAvailable, initialLocation]);
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!photoUri) {
       Alert.alert('Photo Required', 'Please take or choose a photo of the spotted cat.');
       return;
@@ -191,8 +197,32 @@ export const QuickReportScreen: React.FC<QuickReportScreenProps> = ({
         ? applyPrivacyShield(baseCoords.latitude, baseCoords.longitude)
         : { latitude: baseCoords.latitude, longitude: baseCoords.longitude, offsetMeters: 0 };
 
+    const collarDesc = hasCollar ? collarNotes || 'Collar observed' : 'No collar visible';
+    const combinedNotes = `${selectedBehaviour}. ${additionalNotes}`.trim();
+    let sightingId = generateUuid();
+
+    if (coords && isCloudSyncConfigured()) {
+      try {
+        const cloudResult = await submitSightingWithProtection(supabase, {
+          photoUri,
+          latitude: baseCoords.latitude,
+          longitude: baseCoords.longitude,
+          catNameHint: initialCatHint || undefined,
+          coatColour: selectedCoat,
+          collarDescription: collarDesc,
+          notes: combinedNotes,
+          approximateLocationName: finalLocationLabel,
+        });
+        if (cloudResult.sightingId) {
+          sightingId = cloudResult.sightingId;
+        }
+      } catch (err) {
+        console.warn('[QuickReportScreen] Cloud sighting sync failed, saving locally:', err);
+      }
+    }
+
     const newReport: SightingReport = {
-      id: `sighting-${Date.now()}`,
+      id: sightingId,
       catNameHint: initialCatHint || undefined,
       photoUri,
       timestamp: new Date().toISOString(),
@@ -205,16 +235,14 @@ export const QuickReportScreen: React.FC<QuickReportScreenProps> = ({
       approximateLocationName: finalLocationLabel,
       coatColour: selectedCoat,
       coatColor: selectedCoat,
-      collarDescription: hasCollar ? collarNotes || 'Collar observed' : 'No collar visible',
-      notes: `${selectedBehaviour}. ${additionalNotes}`.trim(),
+      collarDescription: collarDesc,
+      notes: combinedNotes,
       isAnonymous: true,
       status: 'unverified',
     };
 
-    setTimeout(() => {
-      setSubmitting(false);
-      onSubmitSighting(newReport);
-    }, 400);
+    setSubmitting(false);
+    onSubmitSighting(newReport);
   };
 
   return (

@@ -11,6 +11,13 @@ import {
   generatePosterHtml,
 } from '../src/services/posterGenerator.ts';
 import {
+  UUID_REGEX,
+  generateUuid,
+  toValidUuid,
+  syncCatProfileToSupabase,
+  submitSightingWithProtection,
+} from '../src/services/sightingService.ts';
+import {
   standDownCatAlerts,
   broadcastCatMissingAlert,
   loadCommunityAlerts,
@@ -373,5 +380,146 @@ describe('PDF Poster Generator: HTML Injection & XSS Protection', () => {
     assert.ok(html.includes('URGENT: MISSING INDOOR CAT'));
     assert.ok(html.includes('LOST PET ALERT — £75 REWARD OFFERED'));
     assert.ok(html.includes('Last seen Tuesday 8pm near Victoria Park East Gate'));
+  });
+});
+
+describe('Cloud Sync & UUID Identity Integrity (sightingService & storage)', () => {
+  test('generateUuid produces valid RFC-4122 UUIDs compatible with public.cats.id', () => {
+    const id1 = generateUuid();
+    const id2 = generateUuid();
+    assert.match(id1, UUID_REGEX);
+    assert.match(id2, UUID_REGEX);
+    assert.notStrictEqual(id1, id2);
+    assert.strictEqual(toValidUuid(id1), id1);
+    assert.strictEqual(toValidUuid('cat-12345'), null);
+    assert.strictEqual(toValidUuid('demo'), null);
+  });
+
+  test('standDownCatAlerts isolates alerts by catId when two cats share a name', async () => {
+    const baseLuna = {
+      name: 'Luna',
+      breed: 'Domestic Shorthair / Tuxedo',
+      gender: 'Female',
+      isNeutered: true,
+      ageYears: 2,
+      coatColour: 'Sleek Black with White Moustache & Paws',
+      distinctiveFeatures: 'Distinct asymmetrical white moustache, golden eyes',
+      microchipNumber: '985141009876543',
+      photoUrl: 'https://images.unsplash.com/photo-1518791841217-8f162f1e1131?w=600',
+      emergencyPhone: '+44 7700 900123',
+      vaccinations: [],
+    };
+    const luna1 = { ...baseLuna, id: generateUuid(), status: 'missing' };
+    const luna2 = { ...baseLuna, id: generateUuid(), status: 'missing' };
+
+    await broadcastCatMissingAlert(luna1);
+    await broadcastCatMissingAlert(luna2);
+
+    // Stand down only luna1 by its catId
+    const updatedAlerts = await standDownCatAlerts('Luna', luna1.id);
+    const alert1 = updatedAlerts.find((a) => a.catId === luna1.id);
+    const alert2 = updatedAlerts.find((a) => a.catId === luna2.id);
+
+    assert.strictEqual(alert1?.status, 'safe', 'Luna 1 alert should be marked safe');
+    assert.strictEqual(alert2?.status, 'critical', 'Luna 2 alert must remain active/critical');
+  });
+
+  test('syncCatProfileToSupabase upserts UUID cat profile with PostGIS home_location', async () => {
+    let upsertedPayload = null;
+    const mockSupabase = {
+      auth: {
+        getSession: async () => ({
+          data: {
+            session: {
+              access_token: 'mock-jwt-token',
+              user: { id: '00000000-0000-4000-8000-000000000001' },
+            },
+          },
+        }),
+      },
+      from: (table) => {
+        assert.strictEqual(table, 'cats');
+        return {
+          upsert: async (payload) => {
+            upsertedPayload = payload;
+            return { error: null };
+          },
+        };
+      },
+    };
+
+    const catUuid = generateUuid();
+    const synced = await syncCatProfileToSupabase(mockSupabase, {
+      id: catUuid,
+      name: 'Mochi',
+      breed: 'British Shorthair / Ginger Tabby',
+      gender: 'Male',
+      isNeutered: true,
+      ageYears: 3,
+      coatColour: 'Warm Ginger with White Bib & Paws',
+      distinctiveFeatures: 'Small nick on left ear tip',
+      microchipNumber: '985141002345678',
+      photoUrl: 'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=600',
+      status: 'missing',
+      emergencyPhone: '+44 7700 900123',
+      homeCoords: { latitude: 51.5362, longitude: -0.0385 },
+      vaccinations: [],
+    });
+
+    assert.strictEqual(synced, true);
+    assert.strictEqual(upsertedPayload.id, catUuid);
+    assert.strictEqual(upsertedPayload.owner_id, '00000000-0000-4000-8000-000000000001');
+    assert.strictEqual(upsertedPayload.status, 'missing');
+    assert.strictEqual(upsertedPayload.home_location, 'SRID=4326;POINT(-0.0385 51.5362)');
+  });
+
+  test('submitSightingWithProtection falls back to direct PostGIS insert with reporter_id', async () => {
+    let insertedSighting = null;
+    const expectedSightingId = generateUuid();
+    const mockSupabase = {
+      auth: {
+        getSession: async () => ({
+          data: {
+            session: {
+              access_token: 'mock-jwt-token',
+              user: { id: '00000000-0000-4000-8000-000000000099' },
+            },
+          },
+        }),
+      },
+      from: (table) => {
+        assert.strictEqual(table, 'sightings');
+        return {
+          insert: (payload) => {
+            insertedSighting = payload;
+            return {
+              select: () => ({
+                single: async () => ({
+                  data: { id: expectedSightingId, jitter_offset_meters: 165 },
+                  error: null,
+                }),
+              }),
+            };
+          },
+        };
+      },
+    };
+
+    const res = await submitSightingWithProtection(mockSupabase, {
+      photoUri: 'https://example.com/spotted.jpg',
+      latitude: 51.5375,
+      longitude: -0.0392,
+      catId: 'non-uuid-cat-1', // should be sanitized to null for PostGIS UUID column
+      catNameHint: 'Mochi',
+      coatColour: 'Ginger Tabby',
+      approximateLocationName: 'Near Victoria Park',
+    });
+
+    assert.strictEqual(res.success, true);
+    assert.strictEqual(res.sightingId, expectedSightingId);
+    assert.strictEqual(res.offsetMeters, 165);
+    assert.strictEqual(insertedSighting.reporter_id, '00000000-0000-4000-8000-000000000099');
+    assert.strictEqual(insertedSighting.cat_id, null);
+    assert.strictEqual(insertedSighting.exact_location, 'SRID=4326;POINT(-0.0392 51.5375)');
   });
 });

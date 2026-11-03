@@ -148,6 +148,11 @@ describe('Web Automated Test Suite (Antigravity)', () => {
         /\.from\(['"]cats['"]\)\s*\.select\(['"]\*['"]\)/,
         'Sighting runner must never select * from raw cats table'
       );
+      assert.match(
+        sightingHtml,
+        /\/functions\/v1\/report-sighting/,
+        'Sighting runner must route sighting reports through report-sighting Edge Function'
+      );
     });
   });
 

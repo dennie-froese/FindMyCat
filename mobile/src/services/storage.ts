@@ -318,14 +318,17 @@ export async function saveCommunityAlerts(alerts: CommunityAlert[]): Promise<voi
  * Stands down community alerts for a safely reunited cat.
  * Updates the alert status to 'safe' and modifies the badge to '🎉 SAFELY REUNITED'.
  */
-export async function standDownCatAlerts(catName: string): Promise<CommunityAlert[]> {
+export async function standDownCatAlerts(catName: string, catId?: string): Promise<CommunityAlert[]> {
   try {
     const alerts = await loadCommunityAlerts();
     const updated = alerts.map((a) => {
-      if (
-        (a.petName && a.petName.toLowerCase() === catName.toLowerCase()) ||
-        a.title.toLowerCase().includes(catName.toLowerCase())
-      ) {
+      const matchesById = Boolean(catId && a.catId && a.catId === catId);
+      const matchesByName =
+        (!catId || !a.catId) &&
+        ((a.petName && a.petName.toLowerCase() === catName.toLowerCase()) ||
+          a.title.toLowerCase().includes(catName.toLowerCase()));
+
+      if (matchesById || matchesByName) {
         return {
           ...a,
           status: 'safe' as const,
@@ -351,12 +354,15 @@ export async function broadcastCatMissingAlert(cat: CatProfile): Promise<Communi
     const alerts = await loadCommunityAlerts();
     const existingIdx = alerts.findIndex(
       (a) =>
-        (a.petName && a.petName.toLowerCase() === cat.name.toLowerCase()) ||
-        a.title.toLowerCase().includes(cat.name.toLowerCase())
+        (a.catId && a.catId === cat.id) ||
+        (!a.catId &&
+          ((a.petName && a.petName.toLowerCase() === cat.name.toLowerCase()) ||
+            a.title.toLowerCase().includes(cat.name.toLowerCase())))
     );
 
     const newAlert: CommunityAlert = {
       id: `alert-${Date.now()}`,
+      catId: cat.id,
       type: 'missing_alert',
       title: `Missing: ${cat.name} (${cat.breed})`,
       subtitle: `Recently reported missing near ${cat.homeAddressApprox || 'local neighbourhood'}. ${cat.distinctiveFeatures || 'Keep an eye out!'}`,

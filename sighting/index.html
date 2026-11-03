@@ -972,12 +972,14 @@
       return 'demo';
     }
 
+    const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
     // Load Cat Profile
     async function loadCatProfile() {
       const catId = getCatIdFromUrl();
 
-      // If live Supabase client exists, attempt fetch via masked public view
-      if (supabaseClient && catId !== 'demo') {
+      // If live Supabase client exists and catId is a valid UUID, attempt fetch via masked public view
+      if (supabaseClient && catId !== 'demo' && UUID_REGEX.test(catId)) {
         try {
           const { data, error } = await supabaseClient
             .from('v_public_missing_cats')
@@ -1200,8 +1202,10 @@
         : (userCoordinates ? `GPS: ${userCoordinates.latitude.toFixed(4)}, ${userCoordinates.longitude.toFixed(4)}` : 'Spotted near poster');
 
       // Final sighting payload
+      const rawCatId = getCatIdFromUrl();
+      const validCatId = rawCatId && UUID_REGEX.test(rawCatId) ? rawCatId : null;
       const payload = {
-        catId: getCatIdFromUrl() === 'demo' ? null : getCatIdFromUrl(),
+        catId: validCatId,
         catNameHint: currentCat.name,
         photoUrl: compressedPhotoBase64 || currentCat.photoUrl || 'https://find-my-cat.uk/assets/favicon.png',
         approximateLocationName: approximateLocation,
@@ -1216,24 +1220,51 @@
       };
 
       try {
-        // If live Supabase is hooked up, call Anonymous Auth and Submit
+        // If live Supabase is hooked up, call Anonymous Auth and Submit via report-sighting Edge Function
         if (supabaseClient) {
-          // 1. Silent anonymous sign in
-          await supabaseClient.auth.signInAnonymously();
+          // 1. Silent anonymous sign in (Option A)
+          const { data: authData } = await supabaseClient.auth.signInAnonymously();
+          const accessToken = authData?.session?.access_token;
+          const reporterId = authData?.session?.user?.id || null;
 
-          // 2. Direct insert or Edge Function
-          const { error: insertError } = await supabaseClient.from('sightings').insert({
-            cat_id: payload.catId,
-            cat_name_hint: payload.catNameHint,
-            photo_url: payload.photoUrl,
-            approximate_location_name: payload.approximateLocationName,
-            exact_location: `SRID=4326;POINT(${payload.longitude} ${payload.latitude})`,
-            notes: payload.notes,
-            is_anonymous: true
-          });
+          let edgeSubmitted = false;
 
-          if (insertError) {
-            console.warn('Supabase insert warning, handled gracefully:', insertError);
+          // 2. Primary route: report-sighting Edge Function Gateway (Option B)
+          if (accessToken && SUPABASE_CONFIG.url) {
+            try {
+              const edgeRes = await fetch(`${SUPABASE_CONFIG.url}/functions/v1/report-sighting`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'apikey': SUPABASE_CONFIG.anonKey,
+                  'Authorization': `Bearer ${accessToken}`
+                },
+                body: JSON.stringify(payload)
+              });
+              if (edgeRes.ok) {
+                edgeSubmitted = true;
+              }
+            } catch (edgeErr) {
+              console.warn('Edge function fallback to direct PostGIS insert:', edgeErr);
+            }
+          }
+
+          // 3. Fallback: direct insert into sightings with authenticated reporter_id
+          if (!edgeSubmitted) {
+            const { error: insertError } = await supabaseClient.from('sightings').insert({
+              reporter_id: reporterId,
+              cat_id: payload.catId,
+              cat_name_hint: payload.catNameHint,
+              photo_url: payload.photoUrl,
+              approximate_location_name: payload.approximateLocationName,
+              exact_location: `SRID=4326;POINT(${payload.longitude} ${payload.latitude})`,
+              notes: payload.notes,
+              is_anonymous: true
+            });
+
+            if (insertError) {
+              console.warn('Supabase insert warning, handled gracefully:', insertError);
+            }
           }
         } else {
           // Demo / Offline Simulation delay

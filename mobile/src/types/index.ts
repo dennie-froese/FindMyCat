@@ -62,6 +62,7 @@ export interface SightingReport {
 
 export interface CommunityAlert {
   id: string;
+  catId?: string;
   type: 'missing_alert' | 'recent_sighting' | 'tnr_colony';
   title: string;
   subtitle: string;
