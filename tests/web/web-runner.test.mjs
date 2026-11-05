@@ -46,6 +46,21 @@ describe('Web Automated Test Suite (Antigravity)', () => {
     test('Supabase Waitlist Leads synchronization support', () => {
       assert.match(htmlContent, /waitlist_leads/i, 'index.html should integrate with Supabase waitlist_leads endpoint');
       assert.match(htmlContent, /FMC_SUPABASE_URL/i, 'index.html should support configurable Supabase environment URL');
+      assert.match(htmlContent, /if\s*\(!res\.ok\)/i, 'index.html should check res.ok on Supabase waitlist fetch');
+      assert.match(htmlContent, /primaryEmailInput\.value\s*=\s*typedEmail/i, 'Secondary CTA form should copy typed email into primary waitlist form');
+    });
+
+    test('Waitlist schema constraints and Google Sheets formula-injection protection', () => {
+      const waitlistSql = readFile('supabase/migrations/20261029220000_user_feedback_and_waitlist.sql');
+      assert.match(waitlistSql, /char_length\(email\)\s+BETWEEN\s+3\s+AND\s+254/i, 'waitlist_leads migration must enforce email format/length CHECK constraint');
+      assert.match(waitlistSql, /char_length\(comment\)\s*<=\s*2000/i, 'user_feedback migration must cap comment length');
+
+      const sheetsPath = path.join(ROOT_DIR, 'google-sheets-script.js');
+      if (fs.existsSync(sheetsPath)) {
+        const sheetsScript = fs.readFileSync(sheetsPath, 'utf-8');
+        assert.match(sheetsScript, /function\s+sanitizeSheetCell/, 'Must define sanitizeSheetCell helper');
+        assert.ok(sheetsScript.includes('/^[=+\\-@\\t\\r]/'), 'Must detect formula-initiating characters (=, +, -, @)');
+      }
     });
 
     test('Accessibility: All <img> tags must have alt attributes', () => {

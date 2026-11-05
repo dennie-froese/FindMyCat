@@ -11,12 +11,12 @@
 -- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.user_feedback (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    client_feedback_id TEXT UNIQUE,
+    client_feedback_id TEXT UNIQUE CHECK (client_feedback_id IS NULL OR char_length(client_feedback_id) <= 128),
     rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
-    comment TEXT NOT NULL DEFAULT '',
-    tag TEXT DEFAULT 'General',
-    app_version TEXT DEFAULT '1.0.0',
-    platform TEXT DEFAULT 'unknown',
+    comment TEXT NOT NULL DEFAULT '' CHECK (char_length(comment) <= 2000),
+    tag TEXT DEFAULT 'General' CHECK (tag IS NULL OR char_length(tag) <= 64),
+    app_version TEXT DEFAULT '1.0.0' CHECK (app_version IS NULL OR char_length(app_version) <= 32),
+    platform TEXT DEFAULT 'unknown' CHECK (platform IS NULL OR char_length(platform) <= 32),
     created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc', now())
 );
 
@@ -53,10 +53,13 @@ CREATE INDEX IF NOT EXISTS idx_user_feedback_created_at
 -- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.waitlist_leads (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    email TEXT NOT NULL,
-    postcode TEXT DEFAULT '',
-    role TEXT DEFAULT 'cat_parent',
-    source TEXT NOT NULL DEFAULT 'landing_page',
+    email TEXT NOT NULL CHECK (
+        char_length(email) BETWEEN 3 AND 254
+        AND email ~* '^[^@\s]+@[^@\s]+\.[^@\s]+$'
+    ),
+    postcode TEXT DEFAULT '' CHECK (postcode IS NULL OR char_length(postcode) <= 32),
+    role TEXT DEFAULT 'cat_parent' CHECK (role IS NULL OR char_length(role) <= 64),
+    source TEXT NOT NULL DEFAULT 'landing_page' CHECK (char_length(source) <= 64),
     metadata JSONB DEFAULT '{}'::jsonb,
     created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc', now())
 );

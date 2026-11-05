@@ -823,6 +823,7 @@
                     name="email" 
                     class="input-field" 
                     placeholder="Enter your email address" 
+                    maxlength="254"
                     required 
                     autocomplete="email"
                   >
@@ -832,6 +833,7 @@
                     name="postcode" 
                     class="input-field" 
                     placeholder="Postcode / Town (e.g. SW4 or Bristol)" 
+                    maxlength="32"
                     style="max-width: 190px;"
                     required
                   >
@@ -1005,7 +1007,7 @@
         <p>Join pet parents, vet nurses, and rescue volunteers creating safer neighbourhoods across the UK.</p>
         
         <form id="secondary-form" class="cta-banner-form">
-          <input type="email" placeholder="Enter your email" required>
+          <input type="email" id="secondary-email" placeholder="Enter your email" maxlength="254" autocomplete="email" required>
           <button type="submit" class="btn btn-primary" style="background: var(--primary);">Join Beta Waitlist</button>
         </form>
       </div>
@@ -1136,7 +1138,7 @@
       // 2. Sync to Supabase waitlist_leads table (via direct PostgREST API)
       if (SUPABASE_CONFIG.url && !SUPABASE_CONFIG.url.includes('your-project.supabase.co')) {
         try {
-          await fetch(`${SUPABASE_CONFIG.url}/rest/v1/waitlist_leads`, {
+          const res = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/waitlist_leads`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -1155,6 +1157,9 @@
               }
             })
           });
+          if (!res.ok) {
+            console.warn('Supabase waitlist sync non-OK status:', res.status);
+          }
         } catch (supabaseError) {
           console.warn('Supabase waitlist sync warning:', supabaseError);
         }
@@ -1193,8 +1198,21 @@
     if (secondaryForm) {
       secondaryForm.addEventListener('submit', (e) => {
         e.preventDefault();
+        const secondaryEmailInput = document.getElementById('secondary-email') || secondaryForm.querySelector('input[type="email"]');
+        const primaryEmailInput = document.getElementById('email');
+        const postcodeInput = document.getElementById('postcode');
+        const typedEmail = secondaryEmailInput?.value?.trim() || '';
+
+        if (typedEmail && primaryEmailInput) {
+          primaryEmailInput.value = typedEmail;
+        }
+
         window.location.href = '#waitlist';
-        document.getElementById('email')?.focus();
+        if (typedEmail && postcodeInput) {
+          postcodeInput.focus();
+        } else {
+          primaryEmailInput?.focus();
+        }
       });
     }
   </script>

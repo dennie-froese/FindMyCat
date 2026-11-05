@@ -336,3 +336,29 @@ $$;
 
 REVOKE EXECUTE ON FUNCTION public.match_sighting_to_missing_cats(uuid, double precision) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.match_sighting_to_missing_cats(uuid, double precision) TO service_role;
+
+-- ----------------------------------------------------------------------------
+-- 4. WAITLIST LEADS & USER FEEDBACK INPUT VALIDATION CONSTRAINTS
+-- ----------------------------------------------------------------------------
+ALTER TABLE public.waitlist_leads
+    DROP CONSTRAINT IF EXISTS chk_waitlist_leads_email_valid,
+    DROP CONSTRAINT IF EXISTS chk_waitlist_leads_postcode_len,
+    DROP CONSTRAINT IF EXISTS chk_waitlist_leads_role_len,
+    DROP CONSTRAINT IF EXISTS chk_waitlist_leads_source_len;
+
+ALTER TABLE public.waitlist_leads
+    ADD CONSTRAINT chk_waitlist_leads_email_valid CHECK (
+        char_length(email) BETWEEN 3 AND 254
+        AND email ~* '^[^@\s]+@[^@\s]+\.[^@\s]+$'
+    ),
+    ADD CONSTRAINT chk_waitlist_leads_postcode_len CHECK (postcode IS NULL OR char_length(postcode) <= 32),
+    ADD CONSTRAINT chk_waitlist_leads_role_len CHECK (role IS NULL OR char_length(role) <= 64),
+    ADD CONSTRAINT chk_waitlist_leads_source_len CHECK (char_length(source) <= 64);
+
+ALTER TABLE public.user_feedback
+    DROP CONSTRAINT IF EXISTS chk_user_feedback_comment_len,
+    DROP CONSTRAINT IF EXISTS chk_user_feedback_tag_len;
+
+ALTER TABLE public.user_feedback
+    ADD CONSTRAINT chk_user_feedback_comment_len CHECK (char_length(comment) <= 2000),
+    ADD CONSTRAINT chk_user_feedback_tag_len CHECK (tag IS NULL OR char_length(tag) <= 64);
