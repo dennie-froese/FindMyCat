@@ -56,7 +56,7 @@ fi
 
 # 4. Check simulator clipboard service
 TEST_CLIPBOARD_TEXT="FindMyCat_A11y_Test_$(date +%s)"
-xcrun simctl pbsync booted || true
+xcrun simctl pbsync host booted || true
 echo "✔ Pasteboard sync verified"
 
 # 5. Check UI readiness

@@ -323,6 +323,81 @@ describe('Supabase Edge Functions Unit Test Suite', () => {
       assert.strictEqual(res3.status, 429);
       assert.ok(Number(res3.headers.get('Retry-After')) >= 1, 'Should include Retry-After header');
     });
+
+    test('Dispatches Expo Push and Twilio SMS alerts when match_sighting_to_missing_cats finds nearby missing cat', async () => {
+      envStore.set('TWILIO_ACCOUNT_SID', 'AC_test_123');
+      envStore.set('TWILIO_AUTH_TOKEN', 'twilio_secret');
+      envStore.set('TWILIO_FROM_NUMBER', '+447700900000');
+
+      const outboundRequests = [];
+      globalThis.fetch = async (url, init) => {
+        outboundRequests.push({ url: String(url), body: init?.body?.toString() || '' });
+        return new Response(JSON.stringify({ ok: true }), { status: 200 });
+      };
+
+      globalThis.__mockCreateClient = () => ({
+        auth: {
+          getUser: async () => ({
+            data: { user: mockUser },
+            error: null,
+          }),
+        },
+        from: () => ({
+          insert: (payload) => ({
+            select: () => ({
+              single: async () => ({
+                data: {
+                  id: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee',
+                  cat_id: payload.cat_id,
+                  photo_url: payload.photo_url,
+                  approximate_location_name: payload.approximate_location_name,
+                  jitter_offset_meters: 150,
+                  status: 'unverified',
+                },
+                error: null,
+              }),
+            }),
+          }),
+        }),
+        rpc: async (fnName) => {
+          assert.strictEqual(fnName, 'match_sighting_to_missing_cats');
+          return {
+            data: [
+              {
+                cat_id: '123e4567-e89b-42d3-a456-426614174000',
+                cat_name: 'Mochi',
+                owner_push_token: 'ExponentPushToken[test_guardian_token_1]',
+                emergency_phone: '+447700900123',
+                distance_meters: 250,
+              },
+            ],
+            error: null,
+          };
+        },
+      });
+
+      const res = await reportSightingHandler(
+        new Request('https://edge.local/report-sighting', {
+          method: 'POST',
+          headers: { Authorization: 'Bearer valid-jwt', 'cf-connecting-ip': '198.51.100.99' },
+          body: JSON.stringify({
+            photoUrl: 'https://example.com/mochi.jpg',
+            latitude: 51.5362,
+            longitude: -0.0385,
+            approximateLocationName: 'Victoria Park Gate',
+          }),
+        })
+      );
+
+      assert.strictEqual(res.status, 201);
+      const body = await res.json();
+      assert.strictEqual(body.matchedCatsCount, 1);
+      assert.strictEqual(body.alertsDispatched.pushSent, 1);
+      assert.strictEqual(body.alertsDispatched.smsSent, 1);
+      assert.strictEqual(outboundRequests.length, 2);
+      assert.ok(outboundRequests.some((r) => r.url.includes('exp.host/--/api/v2/push/send')));
+      assert.ok(outboundRequests.some((r) => r.url.includes('api.twilio.com')));
+    });
   });
 
   // ==========================================================================

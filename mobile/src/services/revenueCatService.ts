@@ -155,6 +155,16 @@ class RevenueCatService {
     return this.currentStatus;
   }
 
+  private isSandboxEnvironment(): boolean {
+    const os = getPlatformOS();
+    const apiKey = os === 'ios' ? REVENUECAT_CONFIG.APPLE_KEY : REVENUECAT_CONFIG.GOOGLE_KEY;
+    return (
+      apiKey.includes('mock_key') ||
+      process.env.EXPO_PUBLIC_DEMO_MODE === 'true' ||
+      Boolean(process.env.NODE_TEST_CONTEXT)
+    );
+  }
+
   /**
    * Purchases the £2.99 / month "Cat Guardian" subscription.
    * Handles StoreKit 2 on iOS and Google Play Billing on Android.
@@ -167,30 +177,47 @@ class RevenueCatService {
       // @ts-ignore
       const PurchasesModule = global?.Purchases;
 
-      if (PurchasesModule && typeof PurchasesModule.purchasePackage === 'function') {
+      if (
+        PurchasesModule &&
+        (typeof PurchasesModule.purchaseProduct === 'function' ||
+          typeof PurchasesModule.purchasePackage === 'function')
+      ) {
         const productId =
           plan === 'monthly'
             ? REVENUECAT_CONFIG.PRODUCT_ID_MONTHLY
             : REVENUECAT_CONFIG.PRODUCT_ID_ANNUAL;
 
-        const { customerInfo } = await PurchasesModule.purchaseProduct(productId);
+        const { customerInfo } =
+          typeof PurchasesModule.purchaseProduct === 'function'
+            ? await PurchasesModule.purchaseProduct(productId)
+            : await PurchasesModule.purchasePackage(productId);
         const isActive = !!customerInfo?.entitlements?.active[REVENUECAT_CONFIG.ENTITLEMENT_ID];
 
         this.currentStatus = {
           isActive,
-          tier: plan === 'monthly' ? 'guardian_monthly' : 'guardian_annual',
+          tier: isActive ? (plan === 'monthly' ? 'guardian_monthly' : 'guardian_annual') : 'free',
           expiresAt: customerInfo?.entitlements?.active[REVENUECAT_CONFIG.ENTITLEMENT_ID]?.expirationDate,
-          originalPurchaseDate: new Date().toISOString(),
-          willRenew: true,
+          originalPurchaseDate: isActive ? new Date().toISOString() : undefined,
+          willRenew: isActive,
           entitlementId: 'cat_guardian',
           priceDisplay: plan === 'monthly' ? REVENUECAT_CONFIG.MONTHLY_PRICE_DISPLAY : REVENUECAT_CONFIG.ANNUAL_PRICE_DISPLAY,
         };
 
         await this.persistStatus();
         return {
-          success: true,
+          success: isActive,
           status: this.currentStatus,
-          message: 'Welcome to Cat Guardian! Your feline protection vault is now fully active.',
+          message: isActive
+            ? 'Welcome to Cat Guardian! Your feline protection vault is now fully active.'
+            : 'Purchase was not completed or entitlement could not be verified.',
+        };
+      }
+
+      if (!this.isSandboxEnvironment()) {
+        return {
+          success: false,
+          status: this.currentStatus,
+          message: 'In-app purchases are unavailable on this device. Please ensure App Store / Google Play billing is enabled.',
         };
       }
 

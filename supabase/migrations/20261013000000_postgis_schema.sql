@@ -257,12 +257,12 @@ CREATE INDEX IF NOT EXISTS idx_vaccination_records_cat_id
  */
 CREATE OR REPLACE FUNCTION public.fmc_calculate_jittered_point(
     input_point GEOMETRY,
-    min_radius_meters DOUBLE PRECISION DEFAULT 150.0,
-    max_radius_meters DOUBLE PRECISION DEFAULT 250.0
+    min_radius_meters DOUBLE PRECISION DEFAULT 100.0,
+    max_radius_meters DOUBLE PRECISION DEFAULT 200.0
 )
 RETURNS GEOMETRY
 LANGUAGE plpgsql
-IMMUTABLE
+VOLATILE
 AS $$
 DECLARE
     u DOUBLE PRECISION;
@@ -385,7 +385,7 @@ BEGIN
     IF NEW.exact_location IS NOT NULL THEN
         -- Recompute jittered location if not explicitly provided or if exact_location has moved
         IF TG_OP = 'INSERT' OR (NEW.exact_location IS DISTINCT FROM OLD.exact_location) OR NEW.jittered_location IS NULL THEN
-            NEW.jittered_location := public.fmc_calculate_jittered_point(NEW.exact_location, 150.0, 250.0);
+            NEW.jittered_location := public.fmc_calculate_jittered_point(NEW.exact_location, 100.0, 200.0);
             NEW.jitter_offset_meters := round(ST_Distance(NEW.exact_location::geography, NEW.jittered_location::geography))::integer;
         END IF;
     END IF;
@@ -408,7 +408,7 @@ AS $$
 BEGIN
     IF NEW.home_location IS NOT NULL THEN
         IF TG_OP = 'INSERT' OR (NEW.home_location IS DISTINCT FROM OLD.home_location) OR NEW.home_location_jittered IS NULL THEN
-            NEW.home_location_jittered := public.fmc_calculate_jittered_point(NEW.home_location, 150.0, 250.0);
+            NEW.home_location_jittered := public.fmc_calculate_jittered_point(NEW.home_location, 100.0, 200.0);
         END IF;
     ELSE
         NEW.home_location_jittered := NULL;
@@ -620,6 +620,7 @@ BEGIN
         ROUND((ST_Distance(a.location::geography, center_point) / 1609.344)::numeric, 1)::double precision AS distance_miles
     FROM public.community_alerts a
     WHERE a.status IN ('critical', 'active')
+      AND (a.expires_at IS NULL OR a.expires_at > timezone('utc', now()))
       AND ST_DWithin(a.location::geography, center_point, radius_meters)
 
     UNION ALL
@@ -814,14 +815,11 @@ CREATE POLICY "Users can submit sightings with their auth identity"
         OR reporter_id IS NULL
     );
 
--- Reporters can view sightings they submitted (via auth identity or fallback token)
+-- Reporters can view sightings they submitted (via auth identity)
 DROP POLICY IF EXISTS "Reporters can view their submitted sightings" ON public.sightings;
 CREATE POLICY "Reporters can view their submitted sightings"
     ON public.sightings FOR SELECT
-    USING (
-        auth.uid() = reporter_id
-        OR (reporter_id IS NULL AND device_token IS NOT NULL)
-    );
+    USING (auth.uid() = reporter_id);
 
 -- Cat guardians can view exact sightings of their own cat
 DROP POLICY IF EXISTS "Cat guardians can view sightings matching their cat" ON public.sightings;

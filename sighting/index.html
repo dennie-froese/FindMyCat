@@ -454,6 +454,13 @@
       color: #ffffff;
     }
 
+    .chip-item:focus-visible,
+    .condition-chip:focus-visible,
+    .toggle-chip:focus-visible {
+      outline: 2px solid var(--primary);
+      outline-offset: 2px;
+    }
+
     /* Photo Upload Box (Completely Optional) */
     .photo-upload-area {
       position: relative;
@@ -806,11 +813,11 @@
           <div class="field-label">
             <span>2. When did you spot them?</span>
           </div>
-          <div class="chip-group" id="time-chips">
-            <div class="chip-item active" data-time="Just now (< 15 mins)">Just now</div>
-            <div class="chip-item" data-time="Earlier today">Earlier today</div>
-            <div class="chip-item" data-time="Yesterday">Yesterday</div>
-            <div class="chip-item" data-time="A few days ago">A few days ago</div>
+          <div class="chip-group" id="time-chips" role="group" aria-label="When did you spot the cat?">
+            <div class="chip-item active" role="button" tabindex="0" aria-pressed="true" data-time="Just now (< 15 mins)">Just now</div>
+            <div class="chip-item" role="button" tabindex="0" aria-pressed="false" data-time="Earlier today">Earlier today</div>
+            <div class="chip-item" role="button" tabindex="0" aria-pressed="false" data-time="Yesterday">Yesterday</div>
+            <div class="chip-item" role="button" tabindex="0" aria-pressed="false" data-time="A few days ago">A few days ago</div>
           </div>
         </div>
 
@@ -838,12 +845,12 @@
             <span>4. What were they doing?</span>
             <span class="subtag">Tap all that apply</span>
           </div>
-          <div class="condition-chips" id="condition-chips">
-            <div class="condition-chip" data-val="Hiding under car/decking">Hiding under car/shed</div>
-            <div class="condition-chip" data-val="Moving fast">Moving quickly</div>
-            <div class="condition-chip" data-val="Appeared timid / scared">Timid / Scared</div>
-            <div class="condition-chip" data-val="Eating / hunting">Eating / Drinking</div>
-            <div class="condition-chip" data-val="Vocal / meowing">Vocal / Meowing</div>
+          <div class="condition-chips" id="condition-chips" role="group" aria-label="What was the cat doing?">
+            <div class="condition-chip" role="button" tabindex="0" aria-pressed="false" data-val="Hiding under car/decking">Hiding under car/shed</div>
+            <div class="condition-chip" role="button" tabindex="0" aria-pressed="false" data-val="Moving fast">Moving quickly</div>
+            <div class="condition-chip" role="button" tabindex="0" aria-pressed="false" data-val="Appeared timid / scared">Timid / Scared</div>
+            <div class="condition-chip" role="button" tabindex="0" aria-pressed="false" data-val="Eating / hunting">Eating / Drinking</div>
+            <div class="condition-chip" role="button" tabindex="0" aria-pressed="false" data-val="Vocal / meowing">Vocal / Meowing</div>
           </div>
         </div>
 
@@ -1105,27 +1112,47 @@
 
       document.getElementById('btn-loc-other').addEventListener('click', setCustomLocationMode);
 
-      // Time Chips
+      // Time Chips (Mouse + Keyboard Accessible)
       const timeChips = document.querySelectorAll('#time-chips .chip-item');
+      const selectTimeChip = (chip) => {
+        timeChips.forEach(c => {
+          c.classList.remove('active');
+          c.setAttribute('aria-pressed', 'false');
+        });
+        chip.classList.add('active');
+        chip.setAttribute('aria-pressed', 'true');
+        selectedTime = chip.getAttribute('data-time');
+      };
       timeChips.forEach(chip => {
-        chip.addEventListener('click', () => {
-          timeChips.forEach(c => c.classList.remove('active'));
-          chip.classList.add('active');
-          selectedTime = chip.getAttribute('data-time');
+        chip.addEventListener('click', () => selectTimeChip(chip));
+        chip.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            selectTimeChip(chip);
+          }
         });
       });
 
-      // Condition Chips (Multi-select)
+      // Condition Chips (Multi-select, Mouse + Keyboard Accessible)
       const conditionChips = document.querySelectorAll('#condition-chips .condition-chip');
+      const toggleConditionChip = (chip) => {
+        const val = chip.getAttribute('data-val');
+        if (chip.classList.contains('selected')) {
+          chip.classList.remove('selected');
+          chip.setAttribute('aria-pressed', 'false');
+          selectedConditions.delete(val);
+        } else {
+          chip.classList.add('selected');
+          chip.setAttribute('aria-pressed', 'true');
+          selectedConditions.add(val);
+        }
+      };
       conditionChips.forEach(chip => {
-        chip.addEventListener('click', () => {
-          const val = chip.getAttribute('data-val');
-          if (chip.classList.contains('selected')) {
-            chip.classList.remove('selected');
-            selectedConditions.delete(val);
-          } else {
-            chip.classList.add('selected');
-            selectedConditions.add(val);
+        chip.addEventListener('click', () => toggleConditionChip(chip));
+        chip.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            toggleConditionChip(chip);
           }
         });
       });
@@ -1207,7 +1234,7 @@
       const payload = {
         catId: validCatId,
         catNameHint: currentCat.name,
-        photoUrl: compressedPhotoBase64 || currentCat.photoUrl || 'https://find-my-cat.uk/assets/favicon.png',
+        photoUrl: compressedPhotoBase64 || currentCat.photoUrl || 'https://find-my-cat.uk/sighting/icons/icon-192.png',
         approximateLocationName: approximateLocation,
         latitude: userCoordinates ? userCoordinates.latitude : 51.5074,
         longitude: userCoordinates ? userCoordinates.longitude : -0.1278,
@@ -1226,6 +1253,27 @@
           const { data: authData } = await supabaseClient.auth.signInAnonymously();
           const accessToken = authData?.session?.access_token;
           const reporterId = authData?.session?.user?.id || null;
+
+          // 1b. Upload sighting photo to fmc-photos Supabase Storage bucket if a photo was captured
+          if (compressedPhotoBase64 && supabaseClient.storage) {
+            try {
+              const photoBlob = await fetch(compressedPhotoBase64).then((r) => r.blob());
+              const storagePath = `sightings/${Date.now()}-${Math.random().toString(36).slice(2, 10)}.jpg`;
+              const bucket = supabaseClient.storage.from('fmc-photos');
+              const { error: uploadErr } = await bucket.upload(storagePath, photoBlob, {
+                contentType: 'image/jpeg',
+                upsert: true
+              });
+              if (!uploadErr) {
+                const { data: publicUrlData } = bucket.getPublicUrl(storagePath);
+                if (publicUrlData && publicUrlData.publicUrl) {
+                  payload.photoUrl = publicUrlData.publicUrl;
+                }
+              }
+            } catch (storageErr) {
+              console.warn('Storage upload fallback to inline compressed image:', storageErr);
+            }
+          }
 
           let edgeSubmitted = false;
 

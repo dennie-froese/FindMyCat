@@ -231,11 +231,115 @@ serve(async (req: Request) => {
       );
     }
 
-    // 5. Success response (Returns sanitized public data + privacy jitter acknowledgment)
+    // 5. Match Sighting to Nearby Missing Cats & Dispatch Push / SMS Alerts
+    let matchedCatsCount = 0;
+    let pushSent = 0;
+    let smsSent = 0;
+
+    try {
+      const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+      const adminClient = supabaseServiceKey
+        ? createClient(supabaseUrl, supabaseServiceKey)
+        : supabaseClient;
+
+      if (adminClient && typeof adminClient.rpc === "function") {
+        const { data: matchedCats } = await adminClient.rpc("match_sighting_to_missing_cats", {
+          sighting_uuid: insertedSighting.id,
+          search_radius_meters: 1500.0,
+        });
+
+        if (Array.isArray(matchedCats) && matchedCats.length > 0) {
+          matchedCatsCount = matchedCats.length;
+          const locationLabel = approximateLocationName ?? "near your area";
+          const expoAccessToken = Deno.env.get("EXPO_ACCESS_TOKEN") ?? "";
+          const twilioSid = Deno.env.get("TWILIO_ACCOUNT_SID") ?? "";
+          const twilioToken = Deno.env.get("TWILIO_AUTH_TOKEN") ?? "";
+          const twilioFrom = Deno.env.get("TWILIO_FROM_NUMBER") ?? "";
+
+          for (const match of matchedCats) {
+            const distLabel = match.distance_meters ? `~${Math.round(match.distance_meters)}m` : "nearby";
+            const catDisplay = match.cat_name || "your missing cat";
+
+            // 5a. Expo Push Notification to Guardian
+            if (
+              typeof match.owner_push_token === "string" &&
+              (match.owner_push_token.startsWith("ExponentPushToken[") ||
+                match.owner_push_token.startsWith("ExpoPushToken["))
+            ) {
+              const pushHeaders: Record<string, string> = {
+                "Content-Type": "application/json",
+                Accept: "application/json",
+              };
+              if (expoAccessToken) {
+                pushHeaders.Authorization = `Bearer ${expoAccessToken}`;
+              }
+
+              const pushRes = await fetch("https://exp.host/--/api/v2/push/send", {
+                method: "POST",
+                headers: pushHeaders,
+                body: JSON.stringify({
+                  to: match.owner_push_token,
+                  sound: "default",
+                  priority: "high",
+                  title: `🚨 Possible Sighting of ${catDisplay}!`,
+                  body: `Spotted ${distLabel} away (${locationLabel}). Tap to view on radar.`,
+                  data: {
+                    type: "sighting_match",
+                    catId: match.cat_id,
+                    sightingId: insertedSighting.id,
+                  },
+                }),
+              });
+              if (pushRes.ok) {
+                pushSent++;
+              }
+            }
+
+            // 5b. Twilio SMS Alert to Guardian Emergency Phone
+            if (
+              typeof match.emergency_phone === "string" &&
+              match.emergency_phone.trim().length >= 7 &&
+              twilioSid &&
+              twilioToken &&
+              twilioFrom
+            ) {
+              const smsParams = new URLSearchParams({
+                To: match.emergency_phone.trim(),
+                From: twilioFrom,
+                Body: `[Find My Cat] Possible sighting of ${catDisplay} reported ${distLabel} away (${locationLabel}). Open the Find My Cat radar to view details.`,
+              });
+              const smsRes = await fetch(
+                `https://api.twilio.com/2010-04-01/Accounts/${twilioSid}/Messages.json`,
+                {
+                  method: "POST",
+                  headers: {
+                    Authorization: `Basic ${btoa(`${twilioSid}:${twilioToken}`)}`,
+                    "Content-Type": "application/x-www-form-urlencoded",
+                  },
+                  body: smsParams,
+                }
+              );
+              if (smsRes.ok) {
+                smsSent++;
+              }
+            }
+          }
+        }
+      }
+    } catch (notifyErr) {
+      console.warn("[report-sighting] Non-fatal guardian alert dispatch warning:", notifyErr);
+    }
+
+    // 6. Success response (Returns sanitized public data + privacy jitter acknowledgment)
     return new Response(
       JSON.stringify({
         success: true,
         sighting: insertedSighting,
+        matchedCatsCount,
+        alertsDispatched: {
+          pushSent,
+          smsSent,
+        },
         privacyShield: {
           status: "active",
           offsetMeters: insertedSighting.jitter_offset_meters,

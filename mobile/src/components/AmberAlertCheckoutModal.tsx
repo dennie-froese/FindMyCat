@@ -8,6 +8,7 @@ import {
   ScrollView,
   ActivityIndicator,
   Alert,
+  Linking,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -41,6 +42,23 @@ export const AmberAlertCheckoutModal: React.FC<AmberAlertCheckoutModalProps> = (
       });
 
       if (result.success) {
+        if (result.requiresBrowserCheckout && result.checkoutUrl) {
+          await Linking.openURL(result.checkoutUrl);
+          Alert.alert(
+            'Complete Payment in Stripe',
+            `Please complete your ${STRIPE_CONFIG.AMBER_ALERT_PRICE_DISPLAY} checkout in the browser. Your 2-mile Emergency Amber Alert for ${cat.name} will activate automatically once Stripe confirms payment.`,
+            [
+              {
+                text: 'OK',
+                onPress: () => {
+                  onClose();
+                },
+              },
+            ]
+          );
+          return;
+        }
+
         Alert.alert(
           '🚨 Amber Alert Dispatched!',
           `Payment of ${STRIPE_CONFIG.AMBER_ALERT_PRICE_DISPLAY} processed via Stripe. High-intensity 2-mile emergency radar broadcast is now active for ${cat.name}.`,

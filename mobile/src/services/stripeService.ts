@@ -53,6 +53,7 @@ class StripeService {
   ): Promise<{
     success: boolean;
     checkoutUrl?: string;
+    requiresBrowserCheckout?: boolean;
     transaction: PaymentTransactionRecord;
     message: string;
   }> {
@@ -79,34 +80,86 @@ class StripeService {
           }),
         });
 
-        if (res.ok) {
-          const data = await res.json();
-          const txn: PaymentTransactionRecord = {
-            id: data.sessionId || transactionId,
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          const failedTxn: PaymentTransactionRecord = {
+            id: transactionId,
             productType: 'amber_alert_broadcast',
             provider: 'stripe',
             amountPence,
             amountDisplay: STRIPE_CONFIG.AMBER_ALERT_PRICE_DISPLAY,
             currency: 'gbp',
-            status: 'succeeded',
+            status: 'failed',
             date: new Date().toISOString(),
             metadata: {
               catId: params.catId,
               catName: params.catName,
-              radiusMiles: params.radiusMiles || STRIPE_CONFIG.DEFAULT_BROADCAST_RADIUS_MILES,
-              mode: data.mode,
+              httpStatus: res.status,
             },
           };
-
-          await this.recordTransaction(txn);
-
+          await this.recordTransaction(failedTxn);
           return {
-            success: true,
-            checkoutUrl: data.checkoutUrl,
-            transaction: txn,
-            message: `🚨 Emergency Amber Alert Broadcast (£14.99) activated! 2-mile radar perimeter engaged.`,
+            success: false,
+            requiresBrowserCheckout: false,
+            transaction: failedTxn,
+            message: errData?.error || 'Could not initiate Stripe checkout session. Please try again.',
           };
         }
+
+        const data = await res.json();
+        const isLiveCheckout = data.mode === 'live' && Boolean(data.checkoutUrl);
+        const txn: PaymentTransactionRecord = {
+          id: data.sessionId || transactionId,
+          productType: 'amber_alert_broadcast',
+          provider: 'stripe',
+          amountPence,
+          amountDisplay: STRIPE_CONFIG.AMBER_ALERT_PRICE_DISPLAY,
+          currency: 'gbp',
+          status: isLiveCheckout ? 'pending' : 'succeeded',
+          date: new Date().toISOString(),
+          metadata: {
+            catId: params.catId,
+            catName: params.catName,
+            radiusMiles: params.radiusMiles || STRIPE_CONFIG.DEFAULT_BROADCAST_RADIUS_MILES,
+            mode: data.mode,
+          },
+        };
+
+        await this.recordTransaction(txn);
+
+        return {
+          success: true,
+          checkoutUrl: data.checkoutUrl,
+          requiresBrowserCheckout: isLiveCheckout,
+          transaction: txn,
+          message: isLiveCheckout
+            ? 'Complete your £14.99 payment in Stripe Checkout to activate the 2-mile Emergency Amber Alert.'
+            : '🚨 Emergency Amber Alert Broadcast (£14.99) activated! 2-mile radar perimeter engaged.',
+        };
+      }
+
+      const isSandboxAllowed =
+        STRIPE_CONFIG.PUBLISHABLE_KEY.startsWith('pk_test_') ||
+        process.env.EXPO_PUBLIC_DEMO_MODE === 'true' ||
+        Boolean(process.env.NODE_TEST_CONTEXT);
+
+      if (!isSandboxAllowed) {
+        const unconfiguredTxn: PaymentTransactionRecord = {
+          id: transactionId,
+          productType: 'amber_alert_broadcast',
+          provider: 'stripe',
+          amountPence,
+          amountDisplay: STRIPE_CONFIG.AMBER_ALERT_PRICE_DISPLAY,
+          currency: 'gbp',
+          status: 'failed',
+          date: new Date().toISOString(),
+        };
+        return {
+          success: false,
+          requiresBrowserCheckout: false,
+          transaction: unconfiguredTxn,
+          message: 'Payment service is not configured. Please check your connection and try again.',
+        };
       }
 
       // Resilient Sandbox / Offline Simulation
@@ -132,6 +185,7 @@ class StripeService {
       return {
         success: true,
         checkoutUrl: `https://checkout.stripe.com/pay/${transactionId}`,
+        requiresBrowserCheckout: false,
         transaction: simulatedTxn,
         message: `🚨 Amber Alert activated (£14.99 via Stripe)! 2-mile neighborhood radar broadcast dispatched.`,
       };

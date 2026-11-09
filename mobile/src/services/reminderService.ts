@@ -98,6 +98,42 @@ export async function cancelExistingCatReminders(catId: string): Promise<void> {
 }
 
 /**
+ * Parses a YYYY-MM-DD date string or Date instance into calendar year/month/day components
+ * without timezone drift.
+ */
+export function parseCalendarDateComponents(dateInput: string | Date): {
+  year: number;
+  month: number;
+  day: number;
+} {
+  if (typeof dateInput === 'string') {
+    const match = dateInput.trim().match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (match) {
+      return {
+        year: Number(match[1]),
+        month: Number(match[2]),
+        day: Number(match[3]),
+      };
+    }
+  }
+  const d = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
+  return {
+    year: d.getUTCFullYear(),
+    month: d.getUTCMonth() + 1,
+    day: d.getUTCDate(),
+  };
+}
+
+/**
+ * Constructs a local Date at the specified hour/minute for a YYYY-MM-DD calendar date.
+ * Avoids the `new Date("YYYY-MM-DD")` UTC-midnight pitfall that shifts dates back one day in western timezones.
+ */
+export function buildLocalReminderDate(dateStr: string, hour = 9, minute = 0): Date {
+  const { year, month, day } = parseCalendarDateComponents(dateStr);
+  return new Date(year, month - 1, day, hour, minute, 0, 0);
+}
+
+/**
  * Calculates 7-day and 1-day vaccination booster reminder schedules based on ISO date strings.
  */
 export function calculateBoosterSchedule(
@@ -105,15 +141,17 @@ export function calculateBoosterSchedule(
   petName: string,
   referenceDate: Date = new Date()
 ): BoosterReminderSchedule {
-  const due = new Date(vaccine.nextDueDate);
-  const now = new Date(referenceDate);
+  const dueParts = parseCalendarDateComponents(vaccine.nextDueDate);
+  const nowParts = parseCalendarDateComponents(referenceDate);
 
-  // Normalize to midnight UTC for day difference calculation
+  // Normalize to calendar-day UTC midnight for timezone-invariant day difference calculation
   const msPerDay = 1000 * 60 * 60 * 24;
-  const daysDiff = Math.round((due.getTime() - now.getTime()) / msPerDay);
+  const dueUtcMs = Date.UTC(dueParts.year, dueParts.month - 1, dueParts.day);
+  const nowUtcMs = Date.UTC(nowParts.year, nowParts.month - 1, nowParts.day);
+  const daysDiff = Math.round((dueUtcMs - nowUtcMs) / msPerDay);
 
-  const sevenDay = new Date(due.getTime() - 7 * msPerDay);
-  const oneDay = new Date(due.getTime() - 1 * msPerDay);
+  const sevenDay = new Date(dueUtcMs - 7 * msPerDay);
+  const oneDay = new Date(dueUtcMs - 1 * msPerDay);
 
   let status: 'overdue' | 'due_soon' | 'scheduled' = 'scheduled';
   if (daysDiff < 0) {
@@ -157,9 +195,10 @@ export function getCatBoosterSchedules(
  * for 7-day and 1-day booster reminders.
  */
 export async function scheduleLocalBoosterAlerts(
-  cat: CatProfile
+  cat: CatProfile,
+  referenceDate: Date = new Date()
 ): Promise<ScheduleAlertsResult> {
-  const schedules = getCatBoosterSchedules(cat);
+  const schedules = getCatBoosterSchedules(cat, referenceDate);
   const activeSchedules = schedules.filter((s) => s.status !== 'overdue');
 
   const hasPermission = await requestNotificationPermissions();
@@ -179,15 +218,14 @@ export async function scheduleLocalBoosterAlerts(
 
   const Notifications = await getNotificationsModule();
   let scheduledCount = 0;
-  const now = new Date();
+  const now = referenceDate;
 
-  if (Notifications) {
-    for (const item of activeSchedules) {
-      // 7-day reminder at 9:00 AM
-      const trigger7 = new Date(item.sevenDayReminderDate);
-      trigger7.setHours(9, 0, 0, 0);
+  for (const item of activeSchedules) {
+    // 7-day reminder at 9:00 AM local calendar time
+    const trigger7 = buildLocalReminderDate(item.sevenDayReminderDate, 9, 0);
 
-      if (trigger7 > now) {
+    if (trigger7 > now) {
+      if (Notifications) {
         try {
           await Notifications.scheduleNotificationAsync({
             content: {
@@ -209,13 +247,16 @@ export async function scheduleLocalBoosterAlerts(
         } catch (e) {
           console.warn('[reminderService] Failed to schedule 7-day trigger:', e);
         }
+      } else {
+        scheduledCount++;
       }
+    }
 
-      // 1-day reminder at 9:00 AM
-      const trigger1 = new Date(item.oneDayReminderDate);
-      trigger1.setHours(9, 0, 0, 0);
+    // 1-day reminder at 9:00 AM local calendar time
+    const trigger1 = buildLocalReminderDate(item.oneDayReminderDate, 9, 0);
 
-      if (trigger1 > now) {
+    if (trigger1 > now) {
+      if (Notifications) {
         try {
           await Notifications.scheduleNotificationAsync({
             content: {
@@ -237,20 +278,17 @@ export async function scheduleLocalBoosterAlerts(
         } catch (e) {
           console.warn('[reminderService] Failed to schedule 1-day trigger:', e);
         }
+      } else {
+        scheduledCount++;
       }
     }
-  } else {
-    // Simulated in headless / unit-test environments
-    scheduledCount = activeSchedules.length * 2;
   }
-
-  const countDisplay = scheduledCount > 0 ? scheduledCount : activeSchedules.length * 2;
 
   return {
     success: true,
     permissionGranted: true,
-    scheduledCount: countDisplay,
+    scheduledCount,
     schedules,
-    confirmationMessage: `Scheduled ${countDisplay} local booster alerts for ${cat.name} (7-day and 1-day prior).`,
+    confirmationMessage: `Scheduled ${scheduledCount} local booster alerts for ${cat.name} (7-day and 1-day prior).`,
   };
 }

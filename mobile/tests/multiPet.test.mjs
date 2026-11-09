@@ -1,6 +1,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  buildLocalReminderDate,
   calculateBoosterSchedule,
   getCatBoosterSchedules,
   scheduleLocalBoosterAlerts,
@@ -14,6 +15,10 @@ import {
   UUID_REGEX,
   generateUuid,
   toValidUuid,
+  deriveDeterministicUuid,
+  uploadPhotoToSupabaseStorage,
+  syncVaccinationRecordsToSupabase,
+  fetchRemoteCatStatuses,
   syncCatProfileToSupabase,
   submitSightingWithProtection,
 } from '../src/services/sightingService.ts';
@@ -309,6 +314,46 @@ describe('Retention Engine: Local Booster Reminder Schedule (PASS-02)', () => {
     assert.strictEqual(result.scheduledCount, 2); // 7-day and 1-day alert
     assert.ok(result.confirmationMessage.includes('Scheduled 2 local booster alerts'));
   });
+
+  test('buildLocalReminderDate preserves local calendar day without UTC midnight drift', () => {
+    const localTrigger = buildLocalReminderDate('2026-10-25', 9, 0);
+    assert.strictEqual(localTrigger.getFullYear(), 2026);
+    assert.strictEqual(localTrigger.getMonth(), 9); // October (0-indexed)
+    assert.strictEqual(localTrigger.getDate(), 25);
+    assert.strictEqual(localTrigger.getHours(), 9);
+    assert.strictEqual(localTrigger.getMinutes(), 0);
+  });
+
+  test('scheduleLocalBoosterAlerts counts only future reminders when 7-day window has passed', async () => {
+    const catDueInThreeDays = {
+      id: 'cat-mochi-soon',
+      name: 'Mochi',
+      breed: 'Ginger Tabby',
+      coatColour: 'Ginger',
+      distinctiveFeatures: 'Ear nick',
+      microchipNumber: '985141002345678',
+      photoUrl: 'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba',
+      status: 'safe',
+      emergencyPhone: '+44 7700 900123',
+      vaccinations: [
+        {
+          id: 'v-soon-1',
+          name: 'Core Booster',
+          administeredDate: '2025-10-21',
+          nextDueDate: '2026-10-21', // 3 days after referenceDate (2026-10-18)
+          vetClinic: 'Victoria Park Vets',
+          isUpToDate: true,
+        },
+      ],
+    };
+
+    const result = await scheduleLocalBoosterAlerts(
+      catDueInThreeDays,
+      new Date(2026, 9, 18, 12, 0, 0)
+    );
+    assert.strictEqual(result.success, true);
+    assert.strictEqual(result.scheduledCount, 1); // Only 1-day alert (2026-10-20 09:00) is in the future
+  });
 });
 
 describe('PDF Poster Generator: HTML Injection & XSS Protection', () => {
@@ -521,5 +566,112 @@ describe('Cloud Sync & UUID Identity Integrity (sightingService & storage)', () 
     assert.strictEqual(insertedSighting.reporter_id, '00000000-0000-4000-8000-000000000099');
     assert.strictEqual(insertedSighting.cat_id, null);
     assert.strictEqual(insertedSighting.exact_location, 'SRID=4326;POINT(-0.0392 51.5375)');
+  });
+
+  test('uploadPhotoToSupabaseStorage uploads base64 data URI to fmc-photos bucket and returns CDN URL', async () => {
+    let uploadedBucket = '';
+    let uploadedPath = '';
+    let uploadedMime = '';
+
+    const mockSupabase = {
+      storage: {
+        from: (bucketName) => {
+          uploadedBucket = bucketName;
+          return {
+            upload: async (path, _bytes, opts) => {
+              uploadedPath = path;
+              uploadedMime = opts.contentType;
+              return { error: null };
+            },
+            getPublicUrl: (path) => ({
+              data: { publicUrl: `https://cdn.findmycat.test/storage/v1/object/public/fmc-photos/${path}` },
+            }),
+          };
+        },
+      },
+    };
+
+    const base64Jpeg = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/';
+    const publicUrl = await uploadPhotoToSupabaseStorage(mockSupabase, base64Jpeg, 'sightings');
+
+    assert.strictEqual(uploadedBucket, 'fmc-photos');
+    assert.match(uploadedPath, /^sightings\/[0-9a-f-]+\.jpg$/i);
+    assert.strictEqual(uploadedMime, 'image/jpeg');
+    assert.ok(publicUrl.startsWith('https://cdn.findmycat.test/storage/v1/object/public/fmc-photos/sightings/'));
+  });
+
+  test('syncVaccinationRecordsToSupabase upserts vaccination records with deterministic UUIDs', async () => {
+    let upsertedVaccinations = null;
+    const catUuid = generateUuid();
+
+    const mockSupabase = {
+      from: (table) => {
+        assert.strictEqual(table, 'vaccination_records');
+        return {
+          upsert: async (rows) => {
+            upsertedVaccinations = rows;
+            return { error: null };
+          },
+        };
+      },
+    };
+
+    const ok = await syncVaccinationRecordsToSupabase(mockSupabase, catUuid, [
+      {
+        id: 'vac-local-1',
+        name: 'Feline Leukaemia (FeLV)',
+        administeredDate: '2026-03-10',
+        nextDueDate: '2027-03-10',
+        vetClinic: 'Victoria Park Vets',
+        isUpToDate: true,
+      },
+    ]);
+
+    assert.strictEqual(ok, true);
+    assert.strictEqual(upsertedVaccinations.length, 1);
+    assert.match(upsertedVaccinations[0].id, UUID_REGEX);
+    assert.strictEqual(
+      upsertedVaccinations[0].id,
+      deriveDeterministicUuid(`${catUuid}:vac-local-1`)
+    );
+    assert.strictEqual(upsertedVaccinations[0].cat_id, catUuid);
+    assert.strictEqual(upsertedVaccinations[0].vaccine_name, 'Feline Leukaemia (FeLV)');
+  });
+
+  test('fetchRemoteCatStatuses retrieves server-side missing status after Stripe webhook activation', async () => {
+    const catUuid = generateUuid();
+    const mockSupabase = {
+      auth: {
+        getSession: async () => ({
+          data: {
+            session: {
+              access_token: 'mock-jwt',
+              user: { id: '00000000-0000-4000-8000-000000000001' },
+            },
+          },
+        }),
+      },
+      from: (table) => {
+        assert.strictEqual(table, 'cats');
+        return {
+          select: () => ({
+            in: async () => ({
+              data: [
+                {
+                  id: catUuid,
+                  status: 'missing',
+                  missing_since: '2026-11-09T19:00:00Z',
+                },
+              ],
+              error: null,
+            }),
+          }),
+        };
+      },
+    };
+
+    const statusMap = await fetchRemoteCatStatuses(mockSupabase, [catUuid]);
+    assert.strictEqual(statusMap[catUuid]?.status, 'missing');
+    assert.strictEqual(statusMap[catUuid]?.missingSince, '2026-11-09T19:00:00Z');
   });
 });

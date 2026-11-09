@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   StyleSheet,
   View,
@@ -6,6 +6,8 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
+  AppState,
+  Linking,
 } from 'react-native';
 import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -32,6 +34,7 @@ import {
   isCloudSyncConfigured,
   syncCatProfileToSupabase,
   deleteCatProfileFromSupabase,
+  fetchRemoteCatStatuses,
 } from './src/services/sightingService';
 
 import { Header } from './src/components/Header';
@@ -114,6 +117,62 @@ function MainAppContent() {
     initData();
   }, []);
 
+
+  const syncRemoteAmberAlertState = useCallback(async () => {
+    if (!isCloudSyncConfigured() || cats.length === 0) return;
+
+    const remoteStatuses = await fetchRemoteCatStatuses(
+      supabase,
+      cats.map((c) => c.id)
+    );
+    if (Object.keys(remoteStatuses).length === 0) return;
+
+    let newlyActivatedCat: CatProfile | null = null;
+    const nextCats = cats.map((cat) => {
+      const remote = remoteStatuses[cat.id];
+      if (remote && remote.status === 'missing' && cat.status !== 'missing') {
+        const updated: CatProfile = {
+          ...cat,
+          status: 'missing',
+          missingSince: remote.missingSince || new Date().toISOString(),
+        };
+        newlyActivatedCat = updated;
+        return updated;
+      }
+      return cat;
+    });
+
+    if (newlyActivatedCat) {
+      setCats(nextCats);
+      await saveCatProfiles(nextCats);
+      const updatedAlerts = await broadcastCatMissingAlert(newlyActivatedCat);
+      if (updatedAlerts.length > 0) {
+        setAlerts(updatedAlerts);
+      }
+      setSelectedCatId((newlyActivatedCat as CatProfile).id);
+      setActiveTab('poster');
+    }
+  }, [cats]);
+
+  // Sync remote Amber Alert activation when returning from Stripe Checkout browser or deep link
+  useEffect(() => {
+    const appStateSub = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active') {
+        syncRemoteAmberAlertState().catch(() => {});
+      }
+    });
+
+    const linkSub = Linking.addEventListener('url', ({ url }) => {
+      if (url && (url.includes('amber-alert-success') || url.includes('amber_alert=success'))) {
+        syncRemoteAmberAlertState().catch(() => {});
+      }
+    });
+
+    return () => {
+      appStateSub.remove();
+      linkSub.remove();
+    };
+  }, [syncRemoteAmberAlertState]);
 
   const handleRefresh = async () => {
     setRefreshing(true);

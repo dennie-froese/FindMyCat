@@ -168,6 +168,16 @@ describe('Web Automated Test Suite (Antigravity)', () => {
         /\/functions\/v1\/report-sighting/,
         'Sighting runner must route sighting reports through report-sighting Edge Function'
       );
+      assert.match(
+        sightingHtml,
+        /class=["']chip-item[^>]*role=["']button["'][^>]*tabindex=["']0["'][^>]*aria-pressed=/,
+        'Sighting runner time chips must be keyboard accessible with aria-pressed'
+      );
+      assert.match(
+        sightingHtml,
+        /class=["']condition-chip[^>]*role=["']button["'][^>]*tabindex=["']0["'][^>]*aria-pressed=/,
+        'Sighting runner condition chips must be keyboard accessible with aria-pressed'
+      );
     });
   });
 
@@ -188,11 +198,18 @@ describe('Web Automated Test Suite (Antigravity)', () => {
     test('Hardening migration locks down cats.home_location and profiles privilege escalation', () => {
       const migrationSql = readFile('supabase/migrations/20261030220000_harden_cats_profiles_and_webhooks.sql');
       assert.match(migrationSql, /REVOKE SELECT ON public\.cats FROM anon, authenticated/i);
+      assert.match(migrationSql, /ALTER FUNCTION public\.fmc_calculate_jittered_point\(geometry, double precision, double precision\) VOLATILE/i);
+      assert.match(migrationSql, /a\.expires_at > timezone\('utc', now\(\)\)/i);
       assert.match(migrationSql, /DROP POLICY IF EXISTS "Public profiles are viewable by everyone" ON public\.profiles/i);
       assert.match(migrationSql, /fmc_trg_protect_profile_privileged_columns/i);
       assert.match(migrationSql, /REVOKE EXECUTE ON FUNCTION public\.activate_amber_alert/i);
       assert.match(migrationSql, /REVOKE EXECUTE ON FUNCTION public\.match_sighting_to_missing_cats/i);
       assert.match(migrationSql, /COALESCE\(c\.home_location_jittered, c\.home_location\)/i);
+
+      const storagePushSql = readFile('supabase/migrations/20261109200000_storage_push_and_vaccinations_sync.sql');
+      assert.match(storagePushSql, /'fmc-photos'/, 'Must provision fmc-photos Supabase Storage bucket');
+      assert.match(storagePushSql, /expo_push_token/, 'Must add expo_push_token column to profiles');
+      assert.match(storagePushSql, /owner_push_token/, 'match_sighting_to_missing_cats must return owner_push_token');
     });
   });
 

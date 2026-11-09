@@ -85,6 +85,67 @@ describe('Monetization: Stripe (One-Off Emergency Amber Alerts)', () => {
     assert.strictEqual(paymentResult.transaction.metadata?.catId, 'test-cat-mochi');
     assert.strictEqual(paymentResult.transaction.metadata?.radiusMiles, 2.0);
   });
+
+  test('Live Stripe Checkout session sets pending status and requiresBrowserCheckout', async () => {
+    const origUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+    const origKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+    const origFetch = globalThis.fetch;
+
+    process.env.EXPO_PUBLIC_SUPABASE_URL = 'https://test-project.supabase.co';
+    process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY = 'test-anon-key';
+    globalThis.fetch = async () =>
+      new Response(
+        JSON.stringify({
+          mode: 'live',
+          sessionId: 'cs_live_123',
+          checkoutUrl: 'https://checkout.stripe.com/c/pay/cs_live_123',
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      );
+
+    try {
+      const res = await stripeService.createAmberAlertPayment({
+        catId: 'test-cat-mochi',
+        catName: 'Mochi',
+      });
+      assert.strictEqual(res.success, true);
+      assert.strictEqual(res.requiresBrowserCheckout, true);
+      assert.strictEqual(res.transaction.status, 'pending');
+      assert.strictEqual(res.checkoutUrl, 'https://checkout.stripe.com/c/pay/cs_live_123');
+    } finally {
+      process.env.EXPO_PUBLIC_SUPABASE_URL = origUrl;
+      process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY = origKey;
+      globalThis.fetch = origFetch;
+    }
+  });
+
+  test('Stripe Edge Function HTTP error fails closed instead of granting simulated success', async () => {
+    const origUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+    const origKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+    const origFetch = globalThis.fetch;
+
+    process.env.EXPO_PUBLIC_SUPABASE_URL = 'https://test-project.supabase.co';
+    process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY = 'test-anon-key';
+    globalThis.fetch = async () =>
+      new Response(JSON.stringify({ error: 'Stripe gateway unavailable' }), {
+        status: 502,
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+    try {
+      const res = await stripeService.createAmberAlertPayment({
+        catId: 'test-cat-mochi',
+        catName: 'Mochi',
+      });
+      assert.strictEqual(res.success, false);
+      assert.strictEqual(res.transaction.status, 'failed');
+      assert.match(res.message, /Stripe gateway unavailable/i);
+    } finally {
+      process.env.EXPO_PUBLIC_SUPABASE_URL = origUrl;
+      process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY = origKey;
+      globalThis.fetch = origFetch;
+    }
+  });
 });
 
 

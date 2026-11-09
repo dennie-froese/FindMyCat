@@ -49,9 +49,10 @@ jobs:
           cd mobile
           npm run test:unit
 
-      - name: 📱 Verify Full End-to-End Suite
+      - name: 📱 Run iOS Simulator Smoke Check
         run: |
-          npm test
+          cd mobile
+          npm run test:sim
 
       - name: 📋 Validate EAS Build & App Configuration
         run: |

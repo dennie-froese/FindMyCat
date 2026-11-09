@@ -362,3 +362,115 @@ ALTER TABLE public.user_feedback
 ALTER TABLE public.user_feedback
     ADD CONSTRAINT chk_user_feedback_comment_len CHECK (char_length(comment) <= 2000),
     ADD CONSTRAINT chk_user_feedback_tag_len CHECK (tag IS NULL OR char_length(tag) <= 64);
+
+-- ----------------------------------------------------------------------------
+-- 5. POSTGIS PRIVACY SHIELD VOLATILITY, 100M-200M BOUNDS, RADAR EXPIRY & RLS
+-- ----------------------------------------------------------------------------
+-- Mark fmc_calculate_jittered_point VOLATILE (since it invokes random()) so
+-- PostgreSQL never caches a single random sample across multi-row statements.
+ALTER FUNCTION public.fmc_calculate_jittered_point(geometry, double precision, double precision) VOLATILE;
+
+-- Align sightings Privacy Shield trigger to 100m-200m annular bounds
+CREATE OR REPLACE FUNCTION public.fmc_trg_sightings_privacy_shield()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SET search_path = public, extensions
+AS $$
+BEGIN
+    IF NEW.exact_location IS NOT NULL THEN
+        IF TG_OP = 'INSERT' OR (NEW.exact_location IS DISTINCT FROM OLD.exact_location) OR NEW.jittered_location IS NULL THEN
+            NEW.jittered_location := public.fmc_calculate_jittered_point(NEW.exact_location, 100.0, 200.0);
+            NEW.jitter_offset_meters := round(ST_Distance(NEW.exact_location::geography, NEW.jittered_location::geography))::integer;
+        END IF;
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+-- Filter expired Amber Alerts (expires_at <= now()) from get_community_radar
+CREATE OR REPLACE FUNCTION public.get_community_radar(
+    user_longitude DOUBLE PRECISION,
+    user_latitude DOUBLE PRECISION,
+    radius_meters DOUBLE PRECISION DEFAULT 3218.69
+)
+RETURNS TABLE (
+    id UUID,
+    blip_type TEXT,
+    title TEXT,
+    subtitle TEXT,
+    badge_text TEXT,
+    photo_url TEXT,
+    status TEXT,
+    latitude DOUBLE PRECISION,
+    longitude DOUBLE PRECISION,
+    distance_miles DOUBLE PRECISION
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, extensions
+AS $$
+DECLARE
+    center_point GEOGRAPHY;
+BEGIN
+    center_point := ST_SetSRID(ST_MakePoint(user_longitude, user_latitude), 4326)::geography;
+
+    RETURN QUERY
+    SELECT
+        a.id,
+        a.type AS blip_type,
+        a.title,
+        coalesce(a.subtitle, '') AS subtitle,
+        coalesce(a.badge_text, 'URGENT ALERT') AS badge_text,
+        a.photo_url,
+        a.status,
+        ST_Y(a.location) AS latitude,
+        ST_X(a.location) AS longitude,
+        ROUND((ST_Distance(a.location::geography, center_point) / 1609.344)::numeric, 1)::double precision AS distance_miles
+    FROM public.community_alerts a
+    WHERE a.status IN ('critical', 'active')
+      AND (a.expires_at IS NULL OR a.expires_at > timezone('utc', now()))
+      AND ST_DWithin(a.location::geography, center_point, radius_meters)
+
+    UNION ALL
+
+    SELECT
+        s.id,
+        'recent_sighting'::TEXT AS blip_type,
+        coalesce('Sighting: ' || s.cat_name_hint, 'Cat Sighting') AS title,
+        coalesce(s.approximate_location_name, 'Spotted nearby') AS subtitle,
+        'NEW SIGHTING'::TEXT AS badge_text,
+        s.photo_url,
+        'active'::TEXT AS status,
+        ST_Y(s.jittered_location) AS latitude,
+        ST_X(s.jittered_location) AS longitude,
+        ROUND((ST_Distance(s.jittered_location::geography, center_point) / 1609.344)::numeric, 1)::double precision AS distance_miles
+    FROM public.sightings s
+    WHERE s.observed_at >= (timezone('utc', now()) - INTERVAL '48 hours')
+      AND ST_DWithin(s.jittered_location::geography, center_point, radius_meters)
+
+    UNION ALL
+
+    SELECT
+        c.id,
+        'tnr_colony'::TEXT AS blip_type,
+        c.name AS title,
+        coalesce(c.cat_count || ' community cats under daily care', c.description) AS subtitle,
+        'TNR SAFE ZONE'::TEXT AS badge_text,
+        NULL::TEXT AS photo_url,
+        'safe'::TEXT AS status,
+        ST_Y(c.location) AS latitude,
+        ST_X(c.location) AS longitude,
+        ROUND((ST_Distance(c.location::geography, center_point) / 1609.344)::numeric, 1)::double precision AS distance_miles
+    FROM public.tnr_colonies c
+    WHERE c.is_monitored = true
+      AND ST_DWithin(c.location::geography, center_point, radius_meters)
+
+    ORDER BY distance_miles ASC;
+END;
+$$;
+
+-- Tighten sightings SELECT RLS so device_token IS NOT NULL does not grant wildcard read access
+DROP POLICY IF EXISTS "Reporters can view their submitted sightings" ON public.sightings;
+CREATE POLICY "Reporters can view their submitted sightings"
+    ON public.sightings FOR SELECT
+    USING (auth.uid() = reporter_id);
