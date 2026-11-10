@@ -80,8 +80,10 @@ serve(async (req: Request) => {
 
     // If Stripe secret key is configured, create live Stripe Checkout Session
     if (stripeSecretKey) {
-      const successUrl = returnUrl || "https://findmycat.app/checkout-success?session_id={CHECKOUT_SESSION_ID}";
-      const cancelUrl = returnUrl || "https://findmycat.app/checkout-cancelled";
+      const successUrl =
+        returnUrl ||
+        "https://find-my-cat.uk/checkout-success/?session_id={CHECKOUT_SESSION_ID}&amber_alert=success";
+      const cancelUrl = "https://find-my-cat.uk/checkout-cancelled/";
 
       const stripeBody = new URLSearchParams();
       stripeBody.append("mode", "payment");

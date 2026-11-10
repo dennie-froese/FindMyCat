@@ -15,8 +15,11 @@
       "backgroundColor": "#fbfaf8"
     },
     "ios": {
-      "supportsTablet": true,
+      "supportsTablet": false,
       "bundleIdentifier": "com.findmycat.app",
+      "associatedDomains": [
+        "applinks:find-my-cat.uk"
+      ],
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSAppTransportSecurity": {
@@ -89,6 +92,7 @@
           "cameraPermission": "Find My Cat needs camera access to take quick photos of sighted lost cats."
         }
       ],
+      "expo-notifications",
       "expo-secure-store"
     ],
     "extra": {

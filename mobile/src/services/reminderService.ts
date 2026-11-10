@@ -76,6 +76,33 @@ export async function requestNotificationPermissions(): Promise<boolean> {
   }
 }
 
+export const EAS_PROJECT_ID = '35b5f7be-2b16-41c6-aff6-c3f9c6f18fba';
+
+/**
+ * Acquires the device's Expo Push Token for remote sighting match notifications.
+ * Safely returns null in simulators, web, or headless test runners.
+ */
+export async function acquireExpoPushToken(
+  projectId: string = EAS_PROJECT_ID
+): Promise<string | null> {
+  const Notifications = await getNotificationsModule();
+  if (!Notifications || typeof Notifications.getExpoPushTokenAsync !== 'function') {
+    return null;
+  }
+
+  try {
+    const granted = await requestNotificationPermissions();
+    if (!granted) {
+      return null;
+    }
+    const tokenResponse = await Notifications.getExpoPushTokenAsync({ projectId });
+    const token = tokenResponse?.data?.trim();
+    return token && token.length > 0 ? token : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Cancels existing scheduled notifications for a cat to avoid duplicates
  * and preserve the iOS 64-notification limit.

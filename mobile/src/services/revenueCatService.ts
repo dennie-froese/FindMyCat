@@ -18,6 +18,33 @@ const getPlatformOS = (): 'ios' | 'android' | 'web' => {
   return 'ios';
 };
 
+/**
+ * Resolves the native RevenueCat Purchases module (`react-native-purchases`) when running
+ * inside a compiled iOS/Android binary, or `global.Purchases` in test harnesses.
+ * Safely returns null in Node.js test runners, web, or Expo Go without native bindings.
+ */
+function getPurchasesModule(): any {
+  try {
+    // @ts-ignore
+    if (typeof globalThis !== 'undefined' && globalThis.Purchases) {
+      // @ts-ignore
+      return globalThis.Purchases;
+    }
+    if (typeof process !== 'undefined' && process.env?.NODE_TEST_CONTEXT) {
+      return null;
+    }
+    if (getPlatformOS() === 'web') {
+      return null;
+    }
+    // Dynamic require so missing native binary in Expo Go / Node does not crash bundle evaluation
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const mod = require('react-native-purchases');
+    return mod?.default ?? mod ?? null;
+  } catch {
+    return null;
+  }
+}
+
 const memoryStore = new Map<string, string>();
 
 const safeStorage = {
@@ -115,15 +142,19 @@ class RevenueCatService {
    * Gracefully falls back to mock/sandbox mode if running in Expo Go or simulator.
    */
   public async initialize(userId?: string): Promise<void> {
-    if (this.isInitialized) return;
+    if (this.isInitialized) {
+      if (userId) {
+        await this.identifyUser(userId);
+      }
+      return;
+    }
 
     try {
       const os = getPlatformOS();
       const apiKey = os === 'ios' ? REVENUECAT_CONFIG.APPLE_KEY : REVENUECAT_CONFIG.GOOGLE_KEY;
 
       // Check if native Purchases module is available in custom dev build / production
-      // @ts-ignore
-      const PurchasesModule = global?.Purchases || null;
+      const PurchasesModule = getPurchasesModule();
 
       if (PurchasesModule && typeof PurchasesModule.configure === 'function') {
         PurchasesModule.configure({
@@ -137,12 +168,65 @@ class RevenueCatService {
 
       // Load cached subscription state
       await this.loadCachedStatus();
+
+      // If native SDK supports getCustomerInfo, sync live StoreKit 2 entitlement state
+      if (PurchasesModule && typeof PurchasesModule.getCustomerInfo === 'function') {
+        try {
+          const customerInfo = await PurchasesModule.getCustomerInfo();
+          this.applyCustomerInfo(customerInfo);
+          await this.persistStatus();
+        } catch {}
+      }
+
       this.isInitialized = true;
     } catch (err) {
       console.warn('[RevenueCat] Initialization warning:', err);
       await this.loadCachedStatus();
       this.isInitialized = true;
     }
+  }
+
+  /**
+   * Binds the authenticated Supabase user UUID to RevenueCat (`app_user_id`) so
+   * `revenuecat-webhook` updates the matching row in `public.profiles`.
+   */
+  public async identifyUser(userId: string): Promise<void> {
+    if (!userId || !userId.trim()) return;
+    try {
+      const PurchasesModule = getPurchasesModule();
+      if (PurchasesModule && typeof PurchasesModule.logIn === 'function') {
+        const result = await PurchasesModule.logIn(userId.trim());
+        const customerInfo = result?.customerInfo ?? result;
+        if (customerInfo?.entitlements) {
+          this.applyCustomerInfo(customerInfo);
+          await this.persistStatus();
+        }
+      }
+    } catch (err) {
+      console.warn('[RevenueCat] identifyUser warning:', err);
+    }
+  }
+
+  private applyCustomerInfo(customerInfo: any, fallbackPlan: 'monthly' | 'annual' = 'monthly'): boolean {
+    const activeEntitlement = customerInfo?.entitlements?.active?.[REVENUECAT_CONFIG.ENTITLEMENT_ID];
+    const isActive = Boolean(activeEntitlement);
+    const productIdentifier = String(activeEntitlement?.productIdentifier || '');
+    const isAnnual =
+      productIdentifier.toLowerCase().includes('annual') || fallbackPlan === 'annual';
+
+    this.currentStatus = {
+      isActive,
+      tier: isActive ? (isAnnual ? 'guardian_annual' : 'guardian_monthly') : 'free',
+      expiresAt: activeEntitlement?.expirationDate || undefined,
+      originalPurchaseDate:
+        activeEntitlement?.originalPurchaseDate || (isActive ? new Date().toISOString() : undefined),
+      willRenew: Boolean(activeEntitlement?.willRenew ?? isActive),
+      entitlementId: 'cat_guardian',
+      priceDisplay: isAnnual
+        ? REVENUECAT_CONFIG.ANNUAL_PRICE_DISPLAY
+        : REVENUECAT_CONFIG.MONTHLY_PRICE_DISPLAY,
+    };
+    return isActive;
   }
 
   /**
@@ -174,12 +258,12 @@ class RevenueCatService {
   ): Promise<{ success: boolean; status: GuardianSubscriptionStatus; message: string }> {
     try {
       // In production with native Purchases module:
-      // @ts-ignore
-      const PurchasesModule = global?.Purchases;
+      const PurchasesModule = getPurchasesModule();
 
       if (
         PurchasesModule &&
         (typeof PurchasesModule.purchaseProduct === 'function' ||
+          typeof PurchasesModule.purchaseStoreProduct === 'function' ||
           typeof PurchasesModule.purchasePackage === 'function')
       ) {
         const productId =
@@ -187,21 +271,33 @@ class RevenueCatService {
             ? REVENUECAT_CONFIG.PRODUCT_ID_MONTHLY
             : REVENUECAT_CONFIG.PRODUCT_ID_ANNUAL;
 
-        const { customerInfo } =
-          typeof PurchasesModule.purchaseProduct === 'function'
-            ? await PurchasesModule.purchaseProduct(productId)
-            : await PurchasesModule.purchasePackage(productId);
-        const isActive = !!customerInfo?.entitlements?.active[REVENUECAT_CONFIG.ENTITLEMENT_ID];
+        let customerInfo: any = null;
 
-        this.currentStatus = {
-          isActive,
-          tier: isActive ? (plan === 'monthly' ? 'guardian_monthly' : 'guardian_annual') : 'free',
-          expiresAt: customerInfo?.entitlements?.active[REVENUECAT_CONFIG.ENTITLEMENT_ID]?.expirationDate,
-          originalPurchaseDate: isActive ? new Date().toISOString() : undefined,
-          willRenew: isActive,
-          entitlementId: 'cat_guardian',
-          priceDisplay: plan === 'monthly' ? REVENUECAT_CONFIG.MONTHLY_PRICE_DISPLAY : REVENUECAT_CONFIG.ANNUAL_PRICE_DISPLAY,
-        };
+        if (typeof PurchasesModule.getOfferings === 'function' && typeof PurchasesModule.purchasePackage === 'function') {
+          try {
+            const offerings = await PurchasesModule.getOfferings();
+            const availablePackages: any[] = offerings?.current?.availablePackages || [];
+            const matchedPkg = availablePackages.find(
+              (pkg) =>
+                pkg?.product?.identifier === productId ||
+                pkg?.identifier === (plan === 'annual' ? '$rc_annual' : '$rc_monthly')
+            );
+            if (matchedPkg) {
+              const res = await PurchasesModule.purchasePackage(matchedPkg);
+              customerInfo = res?.customerInfo ?? res;
+            }
+          } catch {}
+        }
+
+        if (!customerInfo) {
+          const res =
+            typeof PurchasesModule.purchaseProduct === 'function'
+              ? await PurchasesModule.purchaseProduct(productId)
+              : await PurchasesModule.purchasePackage(productId);
+          customerInfo = res?.customerInfo ?? res;
+        }
+
+        const isActive = this.applyCustomerInfo(customerInfo, plan);
 
         await this.persistStatus();
         return {
@@ -266,14 +362,10 @@ class RevenueCatService {
   }> {
     try {
       // In production:
-      // @ts-ignore
-      const PurchasesModule = global?.Purchases;
+      const PurchasesModule = getPurchasesModule();
       if (PurchasesModule && typeof PurchasesModule.restorePurchases === 'function') {
         const customerInfo = await PurchasesModule.restorePurchases();
-        const isActive = !!customerInfo?.entitlements?.active[REVENUECAT_CONFIG.ENTITLEMENT_ID];
-
-        this.currentStatus.isActive = isActive;
-        this.currentStatus.tier = isActive ? 'guardian_monthly' : 'free';
+        const isActive = this.applyCustomerInfo(customerInfo);
         await this.persistStatus();
 
         return {

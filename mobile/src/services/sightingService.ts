@@ -470,6 +470,37 @@ export async function deleteCatProfileFromSupabase(
 }
 
 /**
+ * Erases all remote cloud data associated with the current user (cats, sightings,
+ * push token / profile) and signs out of the Supabase session.
+ * Satisfies Apple App Store Review Guideline 5.1.1(v) (In-App Account Deletion).
+ */
+export async function eraseRemoteAccountData(supabaseClient: any): Promise<boolean> {
+  if (!supabaseClient?.auth) return false;
+
+  try {
+    const { data: sessionData } = await supabaseClient.auth.getSession();
+    const userId = sessionData?.session?.user?.id;
+
+    if (userId && typeof supabaseClient.from === 'function') {
+      await Promise.allSettled([
+        supabaseClient.from('cats').delete().eq('owner_id', userId),
+        supabaseClient.from('sightings').delete().eq('reporter_id', userId),
+        supabaseClient.from('profiles').delete().eq('id', userId),
+      ]);
+    }
+
+    if (typeof supabaseClient.auth.signOut === 'function') {
+      await supabaseClient.auth.signOut();
+    }
+
+    return true;
+  } catch (err) {
+    console.warn('[sightingService] Could not erase remote account data:', err);
+    return false;
+  }
+}
+
+/**
  * Seamlessly upgrades an anonymous finder account to a permanent registered account.
  * Merges past anonymous sightings into the new permanent profile!
  */

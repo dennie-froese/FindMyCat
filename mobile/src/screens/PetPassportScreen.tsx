@@ -33,6 +33,7 @@ interface PetPassportScreenProps {
   onGeneratePoster: () => void;
   onOpenPaywall: () => void;
   onOpenRateApp?: () => void;
+  onEraseAccount?: () => void;
 }
 
 export const PetPassportScreen: React.FC<PetPassportScreenProps> = ({
@@ -48,6 +49,7 @@ export const PetPassportScreen: React.FC<PetPassportScreenProps> = ({
   onGeneratePoster,
   onOpenPaywall,
   onOpenRateApp,
+  onEraseAccount,
 }) => {
   const [copiedChip, setCopiedChip] = useState(false);
   const [amberModalVisible, setAmberModalVisible] = useState(false);
@@ -491,7 +493,7 @@ export const PetPassportScreen: React.FC<PetPassportScreenProps> = ({
 
       {/* 8. Rate Find My Cat */}
       {onOpenRateApp && (
-        <View style={[styles.card, { marginBottom: 30 }]}>
+        <View style={styles.card}>
           <TouchableOpacity
             style={styles.rateAppRow}
             onPress={onOpenRateApp}
@@ -510,6 +512,66 @@ export const PetPassportScreen: React.FC<PetPassportScreenProps> = ({
           </TouchableOpacity>
         </View>
       )}
+
+      {/* 9. Privacy, Legal & Data Controls (App Store Guideline 5.1.1(v) & 3.1.2) */}
+      <View style={[styles.card, { marginBottom: 30 }]}>
+        <View style={styles.cardHeaderRow}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <Ionicons name="lock-closed" size={17} color={Colors.textSecondary} />
+            <Text style={styles.cardHeaderTitle}>Privacy, Legal & Data Controls</Text>
+          </View>
+        </View>
+        <Text style={{ fontSize: 12, color: Colors.textSecondary, marginTop: 4, lineHeight: 17 }}>
+          Exact residential coordinates are protected by our 200m Geodesic Privacy Shield and iOS Keychain encryption.
+        </Text>
+
+        <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
+          <TouchableOpacity
+            style={styles.legalPillBtn}
+            onPress={() => Linking.openURL('https://find-my-cat.uk/privacy/')}
+            accessibilityRole="link"
+            accessibilityLabel="Privacy Policy"
+          >
+            <Ionicons name="shield-half" size={14} color={Colors.textSecondary} />
+            <Text style={styles.legalPillText}>Privacy Policy</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.legalPillBtn}
+            onPress={() => Linking.openURL('https://find-my-cat.uk/terms/')}
+            accessibilityRole="link"
+            accessibilityLabel="Terms of Use and EULA"
+          >
+            <Ionicons name="document-text-outline" size={14} color={Colors.textSecondary} />
+            <Text style={styles.legalPillText}>Terms of Use (EULA)</Text>
+          </TouchableOpacity>
+        </View>
+
+        {onEraseAccount && (
+          <TouchableOpacity
+            style={styles.eraseVaultBtn}
+            onPress={() => {
+              Alert.alert(
+                'Delete Account & Erase Vault?',
+                'This permanently deletes all registered pet passports, cloud-synced sightings, push tokens, and local vault data from Find My Cat. Active App Store subscriptions can be cancelled anytime in iOS Settings.',
+                [
+                  { text: 'Cancel', style: 'cancel' },
+                  {
+                    text: 'Delete All Data',
+                    style: 'destructive',
+                    onPress: onEraseAccount,
+                  },
+                ]
+              );
+            }}
+            accessibilityRole="button"
+            accessibilityLabel="Delete Account and Erase Vault Data"
+          >
+            <Ionicons name="trash-outline" size={15} color={Colors.danger} />
+            <Text style={styles.eraseVaultText}>Delete Account & Erase Vault</Text>
+          </TouchableOpacity>
+        )}
+      </View>
 
       {/* Modal for Stripe Amber Alert Checkout */}
       <AmberAlertCheckoutModal
@@ -990,5 +1052,39 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: Colors.textSecondary,
     marginTop: 2,
+  },
+  legalPillBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 9,
+    borderRadius: 10,
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  legalPillText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: Colors.textSecondary,
+  },
+  eraseVaultBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: 10,
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: '#fef2f2',
+    borderWidth: 1,
+    borderColor: '#fecaca',
+  },
+  eraseVaultText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.danger,
   },
 });

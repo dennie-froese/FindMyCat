@@ -27,15 +27,20 @@ import {
   broadcastCatMissingAlert,
   getOnboardingCompleted,
   setOnboardingCompleted,
+  clearAllLocalVaultData,
 } from './src/services/storage';
 import { revenueCatService, REVENUECAT_CONFIG } from './src/services/revenueCatService';
 import { supabase } from './src/services/supabase';
 import {
   isCloudSyncConfigured,
+  ensureAuthenticatedUser,
   syncCatProfileToSupabase,
   deleteCatProfileFromSupabase,
   fetchRemoteCatStatuses,
+  registerPushTokenWithSupabase,
+  eraseRemoteAccountData,
 } from './src/services/sightingService';
+import { acquireExpoPushToken } from './src/services/reminderService';
 
 import { Header } from './src/components/Header';
 import { SightingsFeedScreen } from './src/screens/SightingsFeedScreen';
@@ -108,6 +113,25 @@ function MainAppContent() {
         setSightings(loadedSightings);
         setAlerts(loadedAlerts);
         setHasOnboarded(onboarded);
+
+        // Background cloud identity binding & Expo Push Token registration
+        if (isCloudSyncConfigured()) {
+          (async () => {
+            try {
+              const { userId } = await ensureAuthenticatedUser(supabase);
+              await revenueCatService.identifyUser(userId);
+              const refreshedStatus = await revenueCatService.getSubscriptionStatus();
+              setGuardianStatus(refreshedStatus);
+
+              const pushToken = await acquireExpoPushToken();
+              if (pushToken) {
+                await registerPushTokenWithSupabase(supabase, pushToken);
+              }
+            } catch (cloudInitErr) {
+              console.warn('[App] Background cloud identity/push init warning:', cloudInitErr);
+            }
+          })();
+        }
       } catch (e) {
         console.error('Initialization error:', e);
       } finally {
@@ -277,6 +301,30 @@ function MainAppContent() {
     }
   };
 
+  const handleEraseAccountAndVault = async () => {
+    try {
+      await clearAllLocalVaultData();
+      const resetStatus = await revenueCatService.cancelSubscriptionForTest();
+      setGuardianStatus(resetStatus);
+      setCats([]);
+      setSelectedCatId('');
+      setSightings([]);
+      setAlerts([]);
+      setHasOnboarded(false);
+
+      if (isCloudSyncConfigured()) {
+        await eraseRemoteAccountData(supabase);
+      }
+
+      Alert.alert(
+        'Vault & Account Data Erased',
+        'All pet profiles, sightings, push tokens, and local vault records have been permanently deleted.'
+      );
+    } catch (err) {
+      console.warn('[App] Failed to erase account and vault data:', err);
+    }
+  };
+
   const handleOnboardingComplete = async ({
     createdCat,
     role,
@@ -435,6 +483,7 @@ function MainAppContent() {
                   setRateModalPetName(activeCat?.name);
                   setRateModalVisible(true);
                 }}
+                onEraseAccount={handleEraseAccountAndVault}
               />
             ) : (
               <View style={styles.emptyContainer}>

@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Amber Alert Activated — Find My Cat</title>
+  <meta name="description" content="Your 2-Mile Emergency Amber Alert broadcast has been activated on the Find My Cat neighborhood radar.">
+  <style>
+    :root {
+      --primary: #f05a3e;
+      --danger: #ef4444;
+      --success: #10b981;
+      --secondary: #0f172a;
+      --surface: #ffffff;
+      --background: #fbfaf8;
+      --border: #e2e8f0;
+      --text-muted: #64748b;
+      --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: var(--font);
+      background: var(--background);
+      color: var(--secondary);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      max-width: 480px;
+      width: 100%;
+      padding: 36px 28px;
+      text-align: center;
+      box-shadow: 0 16px 32px -10px rgba(15, 23, 42, 0.08);
+    }
+    .icon-circle {
+      width: 72px;
+      height: 72px;
+      border-radius: 36px;
+      background: #ecfdf5;
+      color: var(--success);
+      font-size: 34px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 20px;
+    }
+    h1 { font-size: 1.65rem; font-weight: 900; margin-bottom: 10px; }
+    p { color: var(--text-muted); font-size: 0.96rem; line-height: 1.6; margin-bottom: 24px; }
+    .btn {
+      display: inline-block;
+      width: 100%;
+      background: var(--primary);
+      color: #ffffff;
+      font-weight: 800;
+      font-size: 1rem;
+      padding: 15px 24px;
+      border-radius: 14px;
+      text-decoration: none;
+      margin-bottom: 12px;
+    }
+    .sub-link {
+      display: inline-block;
+      font-size: 0.88rem;
+      color: var(--text-muted);
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <div class="icon-circle" aria-hidden="true">🚨</div>
+    <h1>2-Mile Amber Alert Activated!</h1>
+    <p>
+      Thank you. Your Stripe payment has been confirmed and your emergency missing cat broadcast is now live on the 2-mile neighborhood radar.
+    </p>
+    <a id="open-app-btn" href="findmycat://amber-alert-success?amber_alert=success" class="btn">
+      Return to Find My Cat App
+    </a>
+    <a href="/" class="sub-link">Back to Find My Cat Home</a>
+  </main>
+  <script>
+    (function () {
+      const params = new URLSearchParams(window.location.search);
+      const sessionId = params.get('session_id') || '';
+      const deepLink = 'findmycat://amber-alert-success?amber_alert=success' + (sessionId ? '&session_id=' + encodeURIComponent(sessionId) : '');
+      const btn = document.getElementById('open-app-btn');
+      if (btn) btn.setAttribute('href', deepLink);
+      setTimeout(function () {
+        window.location.href = deepLink;
+      }, 600);
+    })();
+  </script>
+</body>
+</html>

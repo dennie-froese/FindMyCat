@@ -77,6 +77,7 @@ class StripeService {
             catId: params.catId,
             catName: params.catName,
             customerEmail: params.customerEmail,
+            returnUrl: 'https://find-my-cat.uk/checkout-success/?session_id={CHECKOUT_SESSION_ID}&amber_alert=success',
           }),
         });
 
@@ -107,7 +108,8 @@ class StripeService {
         }
 
         const data = await res.json();
-        const isLiveCheckout = data.mode === 'live' && Boolean(data.checkoutUrl);
+        const isLiveCheckout =
+          (data.mode === 'live' || data.mode === 'stripe_live') && Boolean(data.checkoutUrl);
         const txn: PaymentTransactionRecord = {
           id: data.sessionId || transactionId,
           productType: 'amber_alert_broadcast',

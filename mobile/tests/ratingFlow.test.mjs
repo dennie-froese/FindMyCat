@@ -25,6 +25,7 @@ describe('App Rating & Community Review Flow', () => {
   test('Manual trigger (Settings / Passport button) is always permitted', async () => {
     const shouldPrompt = await ratingService.shouldPromptForRating('manual');
     assert.strictEqual(shouldPrompt, true);
+    assert.match(RATING_CONFIG.APP_STORE_URL, /id6829300534/, 'APP_STORE_URL must match production ascAppId');
   });
 
   test('Significant events threshold triggers prompt after 2 actions', async () => {

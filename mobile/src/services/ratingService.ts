@@ -29,7 +29,7 @@ export const RATING_CONFIG = {
   MIN_DAYS_BETWEEN_PROMPTS: 7, // 7 days cooldown between prompts
   MAX_PROMPTS_PER_YEAR: 3,     // Matches Apple SKStoreReviewController 3 times / 365 days guideline
   SIGNIFICANT_EVENTS_THRESHOLD: 2, // Needs at least 2 key actions before asking, unless reunited or manual
-  APP_STORE_URL: 'https://apps.apple.com/app/find-my-cat/id6470000000?action=write-review',
+  APP_STORE_URL: 'https://apps.apple.com/app/find-my-cat/id6829300534?action=write-review',
   PLAY_STORE_URL: 'market://details?id=com.findmycat.app',
 };
 

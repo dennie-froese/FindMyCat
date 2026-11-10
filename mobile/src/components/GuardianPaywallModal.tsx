@@ -193,7 +193,7 @@ export const GuardianPaywallModal: React.FC<GuardianPaywallModalProps> = ({
 
               <View style={styles.legalLinksRow}>
                 <TouchableOpacity
-                  onPress={() => Linking.openURL('https://find-my-cat.uk/terms')}
+                  onPress={() => Linking.openURL('https://find-my-cat.uk/terms/')}
                   accessibilityRole="link"
                   accessibilityLabel="Terms of Use (EULA)"
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
@@ -202,7 +202,7 @@ export const GuardianPaywallModal: React.FC<GuardianPaywallModalProps> = ({
                 </TouchableOpacity>
                 <Text style={styles.legalLinkDot}>•</Text>
                 <TouchableOpacity
-                  onPress={() => Linking.openURL('https://find-my-cat.uk/privacy')}
+                  onPress={() => Linking.openURL('https://find-my-cat.uk/privacy/')}
                   accessibilityRole="link"
                   accessibilityLabel="Privacy Policy"
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}

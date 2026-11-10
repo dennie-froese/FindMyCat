@@ -21,6 +21,8 @@ import {
   fetchRemoteCatStatuses,
   syncCatProfileToSupabase,
   submitSightingWithProtection,
+  registerPushTokenWithSupabase,
+  eraseRemoteAccountData,
 } from '../src/services/sightingService.ts';
 import {
   standDownCatAlerts,
@@ -30,6 +32,7 @@ import {
   deleteCatProfile,
   loadCatProfiles,
   saveCatProfiles,
+  clearAllLocalVaultData,
 } from '../src/services/storage.ts';
 
 describe('Multi-Pet Management & Digital Passport Vault', () => {
@@ -673,5 +676,92 @@ describe('Cloud Sync & UUID Identity Integrity (sightingService & storage)', () 
     const statusMap = await fetchRemoteCatStatuses(mockSupabase, [catUuid]);
     assert.strictEqual(statusMap[catUuid]?.status, 'missing');
     assert.strictEqual(statusMap[catUuid]?.missingSince, '2026-11-09T19:00:00Z');
+  });
+
+  test('registerPushTokenWithSupabase upserts Expo Push Token onto public.profiles', async () => {
+    let upsertedProfile = null;
+    const mockSupabase = {
+      auth: {
+        getSession: async () => ({
+          data: {
+            session: {
+              access_token: 'mock-jwt',
+              user: { id: '00000000-0000-4000-8000-000000000042' },
+            },
+          },
+        }),
+      },
+      from: (table) => {
+        assert.strictEqual(table, 'profiles');
+        return {
+          upsert: async (payload) => {
+            upsertedProfile = payload;
+            return { error: null };
+          },
+        };
+      },
+    };
+
+    const ok = await registerPushTokenWithSupabase(
+      mockSupabase,
+      'ExponentPushToken[ios_prod_token_abc123]'
+    );
+    assert.strictEqual(ok, true);
+    assert.strictEqual(upsertedProfile.id, '00000000-0000-4000-8000-000000000042');
+    assert.strictEqual(upsertedProfile.expo_push_token, 'ExponentPushToken[ios_prod_token_abc123]');
+  });
+
+  test('eraseRemoteAccountData and clearAllLocalVaultData satisfy App Store Guideline 5.1.1(v) account deletion', async () => {
+    const deletedTables = [];
+    let signedOut = false;
+
+    const mockSupabase = {
+      auth: {
+        getSession: async () => ({
+          data: {
+            session: {
+              access_token: 'mock-jwt',
+              user: { id: '00000000-0000-4000-8000-000000000077' },
+            },
+          },
+        }),
+        signOut: async () => {
+          signedOut = true;
+          return { error: null };
+        },
+      },
+      from: (table) => ({
+        delete: () => ({
+          eq: async (col, val) => {
+            deletedTables.push({ table, col, val });
+            return { error: null };
+          },
+        }),
+      }),
+    };
+
+    await saveCatProfiles([
+      {
+        id: generateUuid(),
+        name: 'Mochi',
+        breed: 'Tabby',
+        coatColour: 'Ginger',
+        distinctiveFeatures: 'None',
+        microchipNumber: '985141002345678',
+        photoUrl: 'https://example.com/mochi.jpg',
+        status: 'safe',
+        emergencyPhone: '+447700900123',
+        vaccinations: [],
+      },
+    ]);
+
+    await clearAllLocalVaultData();
+    const catsAfterClear = await loadCatProfiles();
+    assert.strictEqual(catsAfterClear.length, 0);
+
+    const remoteErased = await eraseRemoteAccountData(mockSupabase);
+    assert.strictEqual(remoteErased, true);
+    assert.strictEqual(signedOut, true);
+    assert.strictEqual(deletedTables.length, 3);
   });
 });

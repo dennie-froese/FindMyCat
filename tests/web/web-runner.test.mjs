@@ -213,13 +213,32 @@ describe('Web Automated Test Suite (Antigravity)', () => {
     });
   });
 
-  describe('4. GitHub Pages SPA Router Fallback (404.html)', () => {
+  describe('4. GitHub Pages SPA Router Fallback (404.html) & Legal / Checkout Routes', () => {
     const notFoundHtml = readFile('404.html');
 
     test('SPA Router script redirects /sighting/:id to query parameter', () => {
       assert.ok(notFoundHtml.length > 50, '404.html should exist');
       assert.match(notFoundHtml, /window\.location\.replace/i, 'Must use window.location.replace to redirect');
       assert.match(notFoundHtml, /\/sighting\/\?id=/i, 'Must handle redirect to /sighting/?id= query parameter');
+    });
+
+    test('Terms of Use (terms/index.html) and Privacy Policy (privacy/index.html) satisfy App Store & GDPR disclosures', () => {
+      const termsHtml = readFile('terms/index.html');
+      const privacyHtml = readFile('privacy/index.html');
+      const checkoutSuccessHtml = readFile('checkout-success/index.html');
+      const checkoutCancelledHtml = readFile('checkout-cancelled/index.html');
+
+      assert.match(termsHtml, /End-User License Agreement/i);
+      assert.match(termsHtml, /fmc_cat_guardian_monthly_299/);
+      assert.match(termsHtml, /fmc_cat_guardian_annual_2999/);
+      assert.match(termsHtml, /Apple Standard EULA/i);
+
+      assert.match(privacyHtml, /Dual-Zone Geodesic Privacy Shield/i);
+      assert.match(privacyHtml, /UK GDPR/i);
+      assert.match(privacyHtml, /Delete Account/i);
+
+      assert.match(checkoutSuccessHtml, /findmycat:\/\/amber-alert-success\?amber_alert=success/);
+      assert.match(checkoutCancelledHtml, /findmycat:\/\/amber-alert-cancelled/);
     });
   });
 

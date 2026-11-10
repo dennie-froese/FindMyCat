@@ -55,6 +55,40 @@ describe('Monetization: RevenueCat (StoreKit 2 & Google Play Billing)', () => {
     assert.strictEqual(typeof restoreResult.restored, 'boolean');
     assert.ok(restoreResult.message);
   });
+
+  test('RevenueCat identifyUser binds Supabase UUID and syncs native customerInfo entitlement', async () => {
+    const origPurchases = globalThis.Purchases;
+    let loggedInUserId = null;
+
+    globalThis.Purchases = {
+      logIn: async (uid) => {
+        loggedInUserId = uid;
+        return {
+          customerInfo: {
+            entitlements: {
+              active: {
+                cat_guardian: {
+                  productIdentifier: 'fmc_cat_guardian_annual_2999',
+                  expirationDate: '2027-11-10T00:00:00Z',
+                  willRenew: true,
+                },
+              },
+            },
+          },
+        };
+      },
+    };
+
+    try {
+      await revenueCatService.identifyUser('00000000-0000-4000-8000-000000000123');
+      assert.strictEqual(loggedInUserId, '00000000-0000-4000-8000-000000000123');
+      const status = await revenueCatService.getSubscriptionStatus();
+      assert.strictEqual(status.isActive, true);
+      assert.strictEqual(status.tier, 'guardian_annual');
+    } finally {
+      globalThis.Purchases = origPurchases;
+    }
+  });
 });
 
 describe('Monetization: Stripe (One-Off Emergency Amber Alerts)', () => {
@@ -96,7 +130,7 @@ describe('Monetization: Stripe (One-Off Emergency Amber Alerts)', () => {
     globalThis.fetch = async () =>
       new Response(
         JSON.stringify({
-          mode: 'live',
+          mode: 'stripe_live',
           sessionId: 'cs_live_123',
           checkoutUrl: 'https://checkout.stripe.com/c/pay/cs_live_123',
         }),

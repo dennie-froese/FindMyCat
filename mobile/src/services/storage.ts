@@ -414,3 +414,20 @@ export async function resetOnboardingState(): Promise<void> {
     console.error('Failed to reset onboarding state:', error);
   }
 }
+
+/**
+ * Permanently clears all locally persisted cats, sightings, community alerts,
+ * and onboarding state from the device vault.
+ */
+export async function clearAllLocalVaultData(): Promise<void> {
+  try {
+    await Promise.all([
+      storage.removeItem(STORAGE_KEYS.CATS),
+      storage.removeItem(STORAGE_KEYS.SIGHTINGS),
+      storage.removeItem(STORAGE_KEYS.ALERTS),
+      storage.removeItem(STORAGE_KEYS.ONBOARDING),
+    ]);
+  } catch (error) {
+    console.error('Failed to clear local vault data:', error);
+  }
+}
