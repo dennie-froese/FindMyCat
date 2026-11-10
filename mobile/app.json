@@ -17,9 +17,6 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.findmycat.app",
-      "associatedDomains": [
-        "applinks:find-my-cat.uk"
-      ],
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSAppTransportSecurity": {

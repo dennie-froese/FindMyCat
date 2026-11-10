@@ -14,6 +14,13 @@ const getPlatformOS = (): 'ios' | 'android' | 'web' => {
       // @ts-ignore
       return globalThis.Platform.OS;
     }
+    if (typeof process === 'undefined' || !process.env?.NODE_TEST_CONTEXT) {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const rn = require('react-native');
+      if (rn?.Platform?.OS) {
+        return rn.Platform.OS;
+      }
+    }
   } catch {}
   return 'ios';
 };
@@ -76,12 +83,15 @@ export const REVENUECAT_CONFIG = {
   ENTITLEMENT_ID: 'cat_guardian',
   PRODUCT_ID_MONTHLY: 'fmc_cat_guardian_monthly_299',
   PRODUCT_ID_ANNUAL: 'fmc_cat_guardian_annual_2999',
+  PRODUCT_ID_AMBER_ALERT: 'fmc_amber_alert_boost_1499',
 
   // Pricing
   MONTHLY_PRICE_GBP: 2.99,
   MONTHLY_PRICE_DISPLAY: '£2.99 / month',
   ANNUAL_PRICE_GBP: 29.99,
   ANNUAL_PRICE_DISPLAY: '£29.99 / year (Save 16%)',
+  AMBER_ALERT_PRICE_GBP: 14.99,
+  AMBER_ALERT_PRICE_DISPLAY: '£14.99',
 
   // RevenueCat Free Tier Cap
   FREE_TIER_TRACKED_REVENUE_CAP_USD: 2500,
@@ -290,10 +300,22 @@ class RevenueCatService {
         }
 
         if (!customerInfo) {
-          const res =
-            typeof PurchasesModule.purchaseProduct === 'function'
-              ? await PurchasesModule.purchaseProduct(productId)
-              : await PurchasesModule.purchasePackage(productId);
+          if (
+            typeof PurchasesModule.getProducts === 'function' &&
+            typeof PurchasesModule.purchaseStoreProduct === 'function'
+          ) {
+            try {
+              const storeProducts = await PurchasesModule.getProducts([productId]);
+              if (Array.isArray(storeProducts) && storeProducts.length > 0) {
+                const res = await PurchasesModule.purchaseStoreProduct(storeProducts[0]);
+                customerInfo = res?.customerInfo ?? res;
+              }
+            } catch {}
+          }
+        }
+
+        if (!customerInfo && typeof PurchasesModule.purchaseProduct === 'function') {
+          const res = await PurchasesModule.purchaseProduct(productId);
           customerInfo = res?.customerInfo ?? res;
         }
 
@@ -406,9 +428,95 @@ class RevenueCatService {
   }
 
   /**
-   * Resets subscription for testing / sign-out purposes.
+   * Purchases the one-off £14.99 Emergency Amber Alert Boost via StoreKit 2 / RevenueCat on iOS.
+   * Satisfies Apple App Store Review Guideline 3.1.1 for in-app digital radar boosts.
+   */
+  public async purchaseAmberAlertBoost(
+    catId: string
+  ): Promise<{ success: boolean; transactionId?: string; message: string }> {
+    try {
+      if (!this.isInitialized) {
+        await this.initialize();
+      }
+
+      const PurchasesModule = getPurchasesModule();
+      const productId = REVENUECAT_CONFIG.PRODUCT_ID_AMBER_ALERT;
+
+      if (PurchasesModule) {
+        if (typeof PurchasesModule.setAttributes === 'function' && catId) {
+          try {
+            await PurchasesModule.setAttributes({ cat_id: catId });
+          } catch {}
+        }
+
+        let purchaseResult: any = null;
+
+        if (
+          typeof PurchasesModule.getProducts === 'function' &&
+          typeof PurchasesModule.purchaseStoreProduct === 'function'
+        ) {
+          try {
+            const products = await PurchasesModule.getProducts([productId]);
+            if (Array.isArray(products) && products.length > 0) {
+              purchaseResult = await PurchasesModule.purchaseStoreProduct(products[0]);
+            }
+          } catch {}
+        }
+
+        if (!purchaseResult && typeof PurchasesModule.purchaseProduct === 'function') {
+          purchaseResult = await PurchasesModule.purchaseProduct(productId);
+        }
+
+        if (purchaseResult) {
+          const txId =
+            purchaseResult?.transaction?.transactionIdentifier ||
+            purchaseResult?.customerInfo?.nonSubscriptionTransactions?.[0]?.transactionIdentifier ||
+            `rc_amber_${Date.now()}`;
+          return {
+            success: true,
+            transactionId: txId,
+            message: '2-Mile Emergency Amber Alert Boost activated via App Store.',
+          };
+        }
+      }
+
+      if (!this.isSandboxEnvironment()) {
+        return {
+          success: false,
+          message: 'App Store in-app purchases are currently unavailable on this device.',
+        };
+      }
+
+      return {
+        success: true,
+        transactionId: `rc_sandbox_amber_${Date.now()}`,
+        message: '2-Mile Emergency Amber Alert Boost activated (Sandbox).',
+      };
+    } catch (err: any) {
+      if (err?.userCancelled) {
+        return {
+          success: false,
+          message: 'Purchase cancelled.',
+        };
+      }
+      return {
+        success: false,
+        message: err?.message || 'Unable to complete App Store purchase. Please try again.',
+      };
+    }
+  }
+
+  /**
+   * Resets subscription for testing / sign-out purposes and logs out of RevenueCat.
    */
   public async cancelSubscriptionForTest(): Promise<GuardianSubscriptionStatus> {
+    try {
+      const PurchasesModule = getPurchasesModule();
+      if (PurchasesModule && typeof PurchasesModule.logOut === 'function') {
+        await PurchasesModule.logOut();
+      }
+    } catch {}
+
     this.currentStatus = {
       isActive: false,
       tier: 'free',

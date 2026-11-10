@@ -471,7 +471,8 @@ export async function deleteCatProfileFromSupabase(
 
 /**
  * Erases all remote cloud data associated with the current user (cats, sightings,
- * push token / profile) and signs out of the Supabase session.
+ * alerts, uploaded photos, push token / profile, and auth.users account) and signs out
+ * of the Supabase session.
  * Satisfies Apple App Store Review Guideline 5.1.1(v) (In-App Account Deletion).
  */
 export async function eraseRemoteAccountData(supabaseClient: any): Promise<boolean> {
@@ -480,20 +481,65 @@ export async function eraseRemoteAccountData(supabaseClient: any): Promise<boole
   try {
     const { data: sessionData } = await supabaseClient.auth.getSession();
     const userId = sessionData?.session?.user?.id;
+    const accessToken = sessionData?.session?.access_token;
 
-    if (userId && typeof supabaseClient.from === 'function') {
-      await Promise.allSettled([
+    if (!userId) {
+      if (typeof supabaseClient.auth.signOut === 'function') {
+        await supabaseClient.auth.signOut();
+      }
+      return true;
+    }
+
+    let remoteErased = false;
+
+    // 1. Primary path: invoke the `delete-account` Edge Function to remove Storage objects,
+    // database rows, and the `auth.users` account via service_role.
+    if (isCloudSyncConfigured() && accessToken) {
+      try {
+        const res = await fetch(`${SUPABASE_URL}/functions/v1/delete-account`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${accessToken}`,
+            apikey: SUPABASE_ANON_KEY,
+          },
+        });
+        if (res.ok) {
+          remoteErased = true;
+        }
+      } catch (edgeErr) {
+        console.warn('[sightingService] delete-account Edge Function fallback:', edgeErr);
+      }
+    }
+
+    // 2. Fallback path: call the SECURITY DEFINER RPC `delete_my_account`
+    if (!remoteErased && typeof supabaseClient.rpc === 'function') {
+      try {
+        const { error: rpcError } = await supabaseClient.rpc('delete_my_account');
+        if (!rpcError) {
+          remoteErased = true;
+        }
+      } catch (rpcErr) {
+        console.warn('[sightingService] delete_my_account RPC fallback:', rpcErr);
+      }
+    }
+
+    // 3. Direct table cleanup (also supports mock test clients without .rpc)
+    if (!remoteErased && typeof supabaseClient.from === 'function') {
+      const results = await Promise.all([
         supabaseClient.from('cats').delete().eq('owner_id', userId),
         supabaseClient.from('sightings').delete().eq('reporter_id', userId),
         supabaseClient.from('profiles').delete().eq('id', userId),
       ]);
+      const hasError = results.some((r: any) => Boolean(r?.error));
+      remoteErased = !hasError;
     }
 
     if (typeof supabaseClient.auth.signOut === 'function') {
       await supabaseClient.auth.signOut();
     }
 
-    return true;
+    return remoteErased;
   } catch (err) {
     console.warn('[sightingService] Could not erase remote account data:', err);
     return false;

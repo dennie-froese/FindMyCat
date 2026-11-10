@@ -763,5 +763,31 @@ describe('Cloud Sync & UUID Identity Integrity (sightingService & storage)', () 
     assert.strictEqual(remoteErased, true);
     assert.strictEqual(signedOut, true);
     assert.strictEqual(deletedTables.length, 3);
+
+    // Verify RPC path (delete_my_account) is preferred when available
+    let rpcCalled = false;
+    const mockSupabaseWithRpc = {
+      auth: {
+        getSession: async () => ({
+          data: {
+            session: {
+              access_token: 'mock-jwt',
+              user: { id: '00000000-0000-4000-8000-000000000088' },
+            },
+          },
+        }),
+        signOut: async () => ({ error: null }),
+      },
+      rpc: async (fnName) => {
+        if (fnName === 'delete_my_account') {
+          rpcCalled = true;
+          return { data: true, error: null };
+        }
+        return { data: null, error: { message: 'Unknown RPC' } };
+      },
+    };
+    const rpcErased = await eraseRemoteAccountData(mockSupabaseWithRpc);
+    assert.strictEqual(rpcErased, true);
+    assert.strictEqual(rpcCalled, true);
   });
 });

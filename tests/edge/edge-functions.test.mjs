@@ -55,6 +55,10 @@ globalThis.__registeredDenoServeHandler = null;
 await import('../../supabase/functions/revenuecat-webhook/index.ts');
 const revenueCatWebhookHandler = globalThis.__registeredDenoServeHandler;
 
+globalThis.__registeredDenoServeHandler = null;
+await import('../../supabase/functions/delete-account/index.ts');
+const deleteAccountHandler = globalThis.__registeredDenoServeHandler;
+
 // Helper to compute HMAC-SHA256 hex digest using Web Crypto API
 async function hmacSha256Hex(secret, message) {
   const encoder = new TextEncoder();
@@ -507,6 +511,52 @@ describe('Supabase Edge Functions Unit Test Suite', () => {
       assert.match(stripeReqBody, /metadata%5BcatId%5D=demo-cat-1/);
       assert.strictEqual(insertedTransaction.cat_id, null);
       assert.strictEqual(insertedTransaction.metadata.catId, 'demo-cat-1');
+      assert.match(stripeReqBody, /success_url=https%3A%2F%2Ffind-my-cat\.uk%2Fcheckout-success/);
+    });
+
+    test('Enforces returnUrl allowlist to block open-redirect URLs while allowing findmycat:// deep links', async () => {
+      envStore.set('STRIPE_SECRET_KEY', 'sk_test_live_123');
+
+      let stripeReqBody = '';
+      globalThis.fetch = async (_url, init) => {
+        stripeReqBody = init.body;
+        return new Response(
+          JSON.stringify({
+            id: 'cs_live_allowlist',
+            url: 'https://checkout.stripe.com/c/pay/cs_live_allowlist',
+          }),
+          { status: 200 }
+        );
+      };
+
+      // 1. Untrusted external domain in returnUrl -> ignored, falls back to https://find-my-cat.uk/checkout-success
+      await createStripePaymentHandler(
+        new Request('https://edge.local/create-stripe-payment', {
+          method: 'POST',
+          body: JSON.stringify({
+            productType: 'amber_alert',
+            catId: '123e4567-e89b-42d3-a456-426614174000',
+            catName: 'Mochi',
+            returnUrl: 'https://evil-phishing.example.com/steal',
+          }),
+        })
+      );
+      assert.doesNotMatch(stripeReqBody, /evil-phishing/);
+      assert.match(stripeReqBody, /success_url=https%3A%2F%2Ffind-my-cat\.uk%2Fcheckout-success/);
+
+      // 2. Trusted findmycat:// deep link -> accepted
+      await createStripePaymentHandler(
+        new Request('https://edge.local/create-stripe-payment', {
+          method: 'POST',
+          body: JSON.stringify({
+            productType: 'amber_alert',
+            catId: '123e4567-e89b-42d3-a456-426614174000',
+            catName: 'Mochi',
+            returnUrl: 'findmycat://amber-alert-success',
+          }),
+        })
+      );
+      assert.match(stripeReqBody, /success_url=findmycat%3A%2F%2Famber-alert-success/);
     });
   });
 
@@ -722,6 +772,161 @@ describe('Supabase Edge Functions Unit Test Suite', () => {
       assert.strictEqual(profileUpdate.payload.guardian_tier, 'free');
       assert.strictEqual(transactionInsert.product_type, 'cat_guardian_annual');
       assert.strictEqual(transactionInsert.status, 'failed');
+    });
+
+    test('Processes NON_RENEWING_PURCHASE (fmc_amber_alert_boost_1499) and triggers activate_amber_alert RPC', async () => {
+      const userId = '44444444-5555-4666-8777-888888888888';
+      const catId = '123e4567-e89b-42d3-a456-426614174000';
+      let rpcActivated = null;
+
+      globalThis.__mockCreateClient = () => ({
+        rpc: async (fnName, params) => {
+          rpcActivated = { fnName, params };
+          return { data: 'alert-uuid-ios-1', error: null };
+        },
+        from: (table) => {
+          assert.strictEqual(table, 'payment_transactions');
+          return {
+            insert: async (payload) => {
+              transactionInsert = payload;
+              return { error: null };
+            },
+          };
+        },
+      });
+
+      const rawBody = JSON.stringify({
+        event: {
+          id: 'rc_evt_amber_1',
+          type: 'NON_RENEWING_PURCHASE',
+          app_user_id: userId,
+          product_id: 'fmc_amber_alert_boost_1499',
+          price_in_purchased_currency: 14.99,
+          currency: 'GBP',
+          transaction_id: 'rc_tx_amber_999',
+          subscriber_attributes: {
+            cat_id: { value: catId },
+          },
+        },
+      });
+
+      const res = await revenueCatWebhookHandler(
+        new Request('https://edge.local/revenuecat-webhook', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${rcSecret}` },
+          body: rawBody,
+        })
+      );
+
+      assert.strictEqual(res.status, 200);
+      assert.ok(rpcActivated, 'Should invoke activate_amber_alert RPC for iOS StoreKit boost');
+      assert.strictEqual(rpcActivated.fnName, 'activate_amber_alert');
+      assert.strictEqual(rpcActivated.params.p_cat_id, catId);
+      assert.strictEqual(transactionInsert.product_type, 'amber_alert_boost');
+      assert.strictEqual(transactionInsert.amount_pence, 1499);
+      assert.strictEqual(transactionInsert.status, 'succeeded');
+    });
+  });
+
+  // ==========================================================================
+  // 5. delete-account Edge Function (App Store Guideline 5.1.1(v))
+  // ==========================================================================
+  describe('5. delete-account (Full Cloud Account, Storage & Auth Erasure)', () => {
+    const userId = '77777777-8888-4999-8000-999999999999';
+    let removedStoragePaths = [];
+    let deletedTables = [];
+    let deletedAuthUserId = null;
+
+    beforeEach(() => {
+      removedStoragePaths = [];
+      deletedTables = [];
+      deletedAuthUserId = null;
+
+      globalThis.__mockCreateClient = () => ({
+        auth: {
+          getUser: async () => ({
+            data: { user: { id: userId } },
+            error: null,
+          }),
+          admin: {
+            deleteUser: async (uid) => {
+              deletedAuthUserId = uid;
+              return { data: {}, error: null };
+            },
+          },
+        },
+        storage: {
+          from: (bucket) => {
+            assert.strictEqual(bucket, 'fmc-photos');
+            return {
+              remove: async (paths) => {
+                removedStoragePaths.push(...paths);
+                return { data: paths, error: null };
+              },
+            };
+          },
+        },
+        from: (table) => ({
+          select: () => ({
+            eq: async () => {
+              if (table === 'cats') {
+                return {
+                  data: [
+                    {
+                      photo_url:
+                        'https://mock-project.supabase.co/storage/v1/object/public/fmc-photos/cats/cat-photo-1.jpg',
+                    },
+                  ],
+                  error: null,
+                };
+              }
+              if (table === 'sightings') {
+                return {
+                  data: [
+                    {
+                      photo_url:
+                        'https://mock-project.supabase.co/storage/v1/object/public/fmc-photos/sightings/sighting-1.jpg',
+                    },
+                  ],
+                  error: null,
+                };
+              }
+              return { data: [], error: null };
+            },
+          }),
+          delete: () => ({
+            eq: async (col, val) => {
+              deletedTables.push({ table, col, val });
+              return { error: null };
+            },
+          }),
+        }),
+      });
+    });
+
+    test('Rejects unauthenticated requests without Authorization header with 401', async () => {
+      const res = await deleteAccountHandler(
+        new Request('https://edge.local/delete-account', { method: 'POST' })
+      );
+      assert.strictEqual(res.status, 401);
+    });
+
+    test('Deletes fmc-photos Storage objects, database rows, and auth.users account', async () => {
+      const res = await deleteAccountHandler(
+        new Request('https://edge.local/delete-account', {
+          method: 'POST',
+          headers: { Authorization: 'Bearer valid-user-jwt' },
+        })
+      );
+
+      assert.strictEqual(res.status, 200);
+      const body = await res.json();
+      assert.strictEqual(body.success, true);
+      assert.strictEqual(body.deletedUserId, userId);
+      assert.strictEqual(body.deletedPhotoCount, 2);
+      assert.deepStrictEqual(removedStoragePaths, ['cats/cat-photo-1.jpg', 'sightings/sighting-1.jpg']);
+      assert.strictEqual(deletedAuthUserId, userId);
+      assert.strictEqual(deletedTables.length, 4);
     });
   });
 });

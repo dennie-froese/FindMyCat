@@ -80,10 +80,13 @@ export const EAS_PROJECT_ID = '35b5f7be-2b16-41c6-aff6-c3f9c6f18fba';
 
 /**
  * Acquires the device's Expo Push Token for remote sighting match notifications.
+ * When `promptIfUndetermined` is false (e.g., on cold app launch before onboarding),
+ * it only acquires the token if notification permissions were already granted.
  * Safely returns null in simulators, web, or headless test runners.
  */
 export async function acquireExpoPushToken(
-  projectId: string = EAS_PROJECT_ID
+  projectId: string = EAS_PROJECT_ID,
+  promptIfUndetermined: boolean = false
 ): Promise<string | null> {
   const Notifications = await getNotificationsModule();
   if (!Notifications || typeof Notifications.getExpoPushTokenAsync !== 'function') {
@@ -91,7 +94,16 @@ export async function acquireExpoPushToken(
   }
 
   try {
-    const granted = await requestNotificationPermissions();
+    let granted = false;
+    if (promptIfUndetermined) {
+      granted = await requestNotificationPermissions();
+    } else if (typeof Notifications.getPermissionsAsync === 'function') {
+      const settings = await Notifications.getPermissionsAsync();
+      granted = Boolean(
+        settings?.granted ||
+          settings?.ios?.status === Notifications.IosAuthorizationStatus?.PROVISIONAL
+      );
+    }
     if (!granted) {
       return null;
     }

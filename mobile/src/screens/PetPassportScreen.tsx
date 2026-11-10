@@ -9,6 +9,7 @@ import {
   Alert,
   Switch,
   Linking,
+  Platform,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { Ionicons } from '@expo/vector-icons';
@@ -80,7 +81,7 @@ export const PetPassportScreen: React.FC<PetPassportScreenProps> = ({
             },
           },
           {
-            text: 'Stripe Boost (£14.99)',
+            text: Platform.OS === 'ios' ? 'Amber Alert Boost (£14.99)' : 'Stripe Boost (£14.99)',
             onPress: () => setAmberModalVisible(true),
           },
         ]
@@ -263,7 +264,9 @@ export const PetPassportScreen: React.FC<PetPassportScreenProps> = ({
             >
               <Ionicons name="megaphone" size={16} color={Colors.danger} />
               <Text style={styles.amberBoostBtnText}>
-                Upgrade to 2-Mile Amber Alert Broadcast (£14.99 via Stripe)
+                {Platform.OS === 'ios'
+                  ? 'Upgrade to 2-Mile Amber Alert Broadcast (£14.99)'
+                  : 'Upgrade to 2-Mile Amber Alert Broadcast (£14.99 via Stripe)'}
               </Text>
             </TouchableOpacity>
           </View>
@@ -274,7 +277,9 @@ export const PetPassportScreen: React.FC<PetPassportScreenProps> = ({
           >
             <Ionicons name="flash" size={14} color="#b91c1c" />
             <Text style={styles.preEmptiveAmberText}>
-              Emergency Amber Alert Dispatch (£14.99 via Stripe)
+              {Platform.OS === 'ios'
+                ? 'Emergency Amber Alert Dispatch (£14.99)'
+                : 'Emergency Amber Alert Dispatch (£14.99 via Stripe)'}
             </Text>
           </TouchableOpacity>
         )}
@@ -522,7 +527,7 @@ export const PetPassportScreen: React.FC<PetPassportScreenProps> = ({
           </View>
         </View>
         <Text style={{ fontSize: 12, color: Colors.textSecondary, marginTop: 4, lineHeight: 17 }}>
-          Exact residential coordinates are protected by our 200m Geodesic Privacy Shield and iOS Keychain encryption.
+          Exact residential coordinates are protected by our 100m–200m Geodesic Privacy Shield and iOS Keychain encryption.
         </Text>
 
         <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>

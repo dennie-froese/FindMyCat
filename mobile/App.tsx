@@ -123,7 +123,8 @@ function MainAppContent() {
               const refreshedStatus = await revenueCatService.getSubscriptionStatus();
               setGuardianStatus(refreshedStatus);
 
-              const pushToken = await acquireExpoPushToken();
+              // Only read an existing push token on cold start (never prompt before onboarding)
+              const pushToken = await acquireExpoPushToken(undefined, Boolean(onboarded && loadedCats.length > 0));
               if (pushToken) {
                 await registerPushTokenWithSupabase(supabase, pushToken);
               }
@@ -274,9 +275,17 @@ function MainAppContent() {
     setSelectedCatId(newCat.id);
 
     if (isCloudSyncConfigured()) {
-      syncCatProfileToSupabase(supabase, newCat).catch((err) =>
-        console.warn('[App] Background new cat cloud sync warning:', err)
-      );
+      (async () => {
+        try {
+          await syncCatProfileToSupabase(supabase, newCat);
+          const pushToken = await acquireExpoPushToken(undefined, true);
+          if (pushToken) {
+            await registerPushTokenWithSupabase(supabase, pushToken);
+          }
+        } catch (err) {
+          console.warn('[App] Background new cat cloud sync warning:', err);
+        }
+      })();
     }
   };
 
@@ -303,6 +312,10 @@ function MainAppContent() {
 
   const handleEraseAccountAndVault = async () => {
     try {
+      const remoteErased = isCloudSyncConfigured()
+        ? await eraseRemoteAccountData(supabase)
+        : true;
+
       await clearAllLocalVaultData();
       const resetStatus = await revenueCatService.cancelSubscriptionForTest();
       setGuardianStatus(resetStatus);
@@ -312,14 +325,17 @@ function MainAppContent() {
       setAlerts([]);
       setHasOnboarded(false);
 
-      if (isCloudSyncConfigured()) {
-        await eraseRemoteAccountData(supabase);
+      if (remoteErased) {
+        Alert.alert(
+          'Vault & Account Data Erased',
+          'All pet profiles, sightings, uploaded photos, push tokens, and local vault records have been permanently deleted.'
+        );
+      } else {
+        Alert.alert(
+          'Local Vault Erased',
+          'All local device records were removed, but we could not reach the cloud server to confirm remote account erasure. Please check your connection or email contact@findmycat.app if needed.'
+        );
       }
-
-      Alert.alert(
-        'Vault & Account Data Erased',
-        'All pet profiles, sightings, push tokens, and local vault records have been permanently deleted.'
-      );
     } catch (err) {
       console.warn('[App] Failed to erase account and vault data:', err);
     }
@@ -342,9 +358,17 @@ function MainAppContent() {
       setActiveTab('passport');
 
       if (isCloudSyncConfigured()) {
-        syncCatProfileToSupabase(supabase, createdCat).catch((err) =>
-          console.warn('[App] Background onboarding cat cloud sync warning:', err)
-        );
+        (async () => {
+          try {
+            await syncCatProfileToSupabase(supabase, createdCat);
+            const pushToken = await acquireExpoPushToken(undefined, true);
+            if (pushToken) {
+              await registerPushTokenWithSupabase(supabase, pushToken);
+            }
+          } catch (err) {
+            console.warn('[App] Background onboarding cat cloud sync warning:', err);
+          }
+        })();
       }
     } else if (role === 'spotter') {
       setActiveTab('feed');

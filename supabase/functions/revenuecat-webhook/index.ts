@@ -121,6 +121,53 @@ serve(async (req: Request) => {
       entitlement_ids: entitlementIds = [],
     } = event;
 
+    const isAmberAlertBoost =
+      eventType === "NON_RENEWING_PURCHASE" ||
+      (typeof productId === "string" && productId.toLowerCase().includes("amber_alert"));
+
+    if (isAmberAlertBoost) {
+      const catIdAttr = event.subscriber_attributes?.cat_id?.value || event.metadata?.cat_id || null;
+      const validUserId = appUserId && appUserId.length === 36 ? appUserId : null;
+
+      if (catIdAttr) {
+        const { error: alertError } = await supabaseClient.rpc("activate_amber_alert", {
+          p_cat_id: catIdAttr,
+          p_user_id: validUserId,
+          p_payment_intent_id: transactionId || event.id || `rc_amber_${Date.now()}`,
+          p_broadcast_radius_meters: 3218.69,
+        });
+        if (alertError) {
+          console.warn("Could not activate amber alert from RevenueCat webhook:", alertError);
+        }
+      }
+
+      const amountPence = price ? Math.round(price * 100) : 1499;
+      await supabaseClient.from("payment_transactions").insert({
+        user_id: validUserId,
+        cat_id: catIdAttr && String(catIdAttr).length === 36 ? catIdAttr : null,
+        product_type: "amber_alert_boost",
+        provider: "revenuecat",
+        amount_pence: amountPence,
+        currency: (currency || "gbp").toLowerCase(),
+        revenuecat_transaction_id: transactionId || event.id,
+        status: "succeeded",
+        metadata: {
+          eventType,
+          productId,
+          catId: catIdAttr,
+          rawEvent: event,
+        },
+      });
+
+      return new Response(
+        JSON.stringify({ success: true, processedEvent: eventType, productType: "amber_alert_boost" }),
+        {
+          status: 200,
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        }
+      );
+    }
+
     const isGuardianEntitlement = entitlementIds.includes("cat_guardian") || productId?.includes("guardian");
     const isAnnualProduct = typeof productId === "string" && productId.toLowerCase().includes("annual");
     const activeTier = isAnnualProduct ? "guardian_annual" : "guardian_monthly";

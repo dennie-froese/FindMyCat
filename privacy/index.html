@@ -141,9 +141,9 @@
         <li><strong>Purchase &amp; Subscription Metadata:</strong> Anonymous transaction receipts processed via Apple StoreKit 2 / RevenueCat and Stripe Checkout. We never store raw credit card numbers on our servers.</li>
       </ul>
 
-      <h2>2. Dual-Zone Geodesic Privacy Shield (150m–250m Buffer)</h2>
+      <h2>2. Dual-Zone Geodesic Privacy Shield (100m–200m Buffer)</h2>
       <p>
-        To prevent residential address exposure and targeted pet theft, exact GPS coordinates (`home_location` and `exact_location`) are protected by PostgreSQL Row-Level Security (RLS) and are <strong>never</strong> exposed on public feeds. Public radar pins are displaced once at write-time onto an annular ring between 150 meters and 250 meters (~200m average) from the true coordinate.
+        To prevent residential address exposure and targeted pet theft, exact GPS coordinates (`home_location` and `exact_location`) are protected by PostgreSQL Row-Level Security (RLS) and are <strong>never</strong> exposed on public feeds. Public radar pins are displaced once at write-time onto an annular ring between 100 meters and 200 meters from the true coordinate.
       </p>
 
       <h2>3. Third-Party Processors &amp; Zero Advertising</h2>
@@ -152,8 +152,8 @@
       </p>
       <ul>
         <li><strong>Supabase (PostgreSQL / PostGIS &amp; Storage):</strong> Encrypted database and photo storage.</li>
-        <li><strong>Apple StoreKit 2 &amp; RevenueCat:</strong> In-app subscription entitlement management.</li>
-        <li><strong>Stripe:</strong> PCI-DSS Level 1 payment processing for one-off Emergency Amber Alerts.</li>
+        <li><strong>Apple StoreKit 2 &amp; RevenueCat:</strong> In-app subscription and boost entitlement management.</li>
+        <li><strong>Stripe:</strong> PCI-DSS Level 1 payment processing for web and non-iOS Emergency Amber Alerts.</li>
         <li><strong>Expo Push &amp; Twilio:</strong> Push notification and emergency SMS alert delivery.</li>
         <li><strong>Cloudflare Turnstile:</strong> Privacy-preserving anti-bot verification for web sighting reports.</li>
       </ul>
@@ -163,8 +163,8 @@
         You are in full control of your data. You can delete individual pet passports or permanently delete your entire account and cloud data at any time:
       </p>
       <ul>
-        <li><strong>In-App Instant Deletion:</strong> Open the Find My Cat app → go to the <strong>Passport</strong> tab → scroll to <strong>Privacy, Legal &amp; Data Controls</strong> → tap <strong>Delete Account &amp; Erase Vault</strong>. This immediately deletes your pet profiles, sightings, push tokens, and local vault data.</li>
-        <li><strong>By Email:</strong> Contact <a href="mailto:privacy@find-my-cat.uk">privacy@find-my-cat.uk</a> or <a href="mailto:contact@findmycat.app">contact@findmycat.app</a> and we will process your erasure request within 7 days.</li>
+        <li><strong>In-App Instant Deletion:</strong> Open the Find My Cat app → go to the <strong>Passport</strong> tab → scroll to <strong>Privacy, Legal &amp; Data Controls</strong> → tap <strong>Delete Account &amp; Erase Vault</strong>. This immediately deletes your pet profiles, sightings, uploaded photos, push tokens, authentication record, and local vault data.</li>
+        <li><strong>By Email:</strong> Contact <a href="mailto:contact@findmycat.app">contact@findmycat.app</a> or <a href="mailto:hello@findmycat.app">hello@findmycat.app</a> and we will process your erasure request within 7 days.</li>
       </ul>
 
       <h2>5. Your Rights Under UK GDPR</h2>
@@ -174,7 +174,7 @@
 
       <h2>6. Contact Us</h2>
       <p>
-        For any privacy questions or data requests, please email <a href="mailto:privacy@find-my-cat.uk">privacy@find-my-cat.uk</a>.
+        For any privacy questions or data requests, please email <a href="mailto:contact@findmycat.app">contact@findmycat.app</a>.
       </p>
     </article>
   </main>

@@ -210,6 +210,11 @@ describe('Web Automated Test Suite (Antigravity)', () => {
       assert.match(storagePushSql, /'fmc-photos'/, 'Must provision fmc-photos Supabase Storage bucket');
       assert.match(storagePushSql, /expo_push_token/, 'Must add expo_push_token column to profiles');
       assert.match(storagePushSql, /owner_push_token/, 'match_sighting_to_missing_cats must return owner_push_token');
+
+      const deletionSql = readFile('supabase/migrations/20261110190000_account_deletion_and_rls.sql');
+      assert.match(deletionSql, /CREATE OR REPLACE FUNCTION public\.delete_my_account\(\)/i);
+      assert.match(deletionSql, /DELETE FROM auth\.users\s+WHERE id = v_user_id/i);
+      assert.match(deletionSql, /FOR DELETE\s+TO authenticated\s+USING \(auth\.uid\(\) = id\)/i);
     });
   });
 
@@ -231,12 +236,17 @@ describe('Web Automated Test Suite (Antigravity)', () => {
       assert.match(termsHtml, /End-User License Agreement/i);
       assert.match(termsHtml, /fmc_cat_guardian_monthly_299/);
       assert.match(termsHtml, /fmc_cat_guardian_annual_2999/);
+      assert.match(termsHtml, /fmc_amber_alert_boost_1499/);
+      assert.match(termsHtml, /100m–200m/);
       assert.match(termsHtml, /Apple Standard EULA/i);
 
       assert.match(privacyHtml, /Dual-Zone Geodesic Privacy Shield/i);
+      assert.match(privacyHtml, /100m–200m/);
+      assert.match(privacyHtml, /contact@findmycat\.app/);
       assert.match(privacyHtml, /UK GDPR/i);
       assert.match(privacyHtml, /Delete Account/i);
 
+      assert.match(checkoutSuccessHtml, /2-Mile Amber Alert Processing/);
       assert.match(checkoutSuccessHtml, /findmycat:\/\/amber-alert-success\?amber_alert=success/);
       assert.match(checkoutCancelledHtml, /findmycat:\/\/amber-alert-cancelled/);
     });

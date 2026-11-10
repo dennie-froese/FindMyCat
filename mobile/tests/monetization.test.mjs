@@ -89,6 +89,44 @@ describe('Monetization: RevenueCat (StoreKit 2 & Google Play Billing)', () => {
       globalThis.Purchases = origPurchases;
     }
   });
+
+  test('RevenueCat purchaseAmberAlertBoost purchases £14.99 iOS StoreKit 2 boost and cancelSubscriptionForTest calls logOut', async () => {
+    const origPurchases = globalThis.Purchases;
+    let purchasedProductId = null;
+    let assignedCatAttr = null;
+    let loggedOut = false;
+
+    globalThis.Purchases = {
+      setAttributes: async (attrs) => {
+        assignedCatAttr = attrs.cat_id;
+      },
+      getProducts: async (ids) => ids.map((id) => ({ identifier: id, price: 14.99 })),
+      purchaseStoreProduct: async (product) => {
+        purchasedProductId = product.identifier;
+        return {
+          transaction: { transactionIdentifier: 'storekit2_amber_tx_001' },
+        };
+      },
+      logOut: async () => {
+        loggedOut = true;
+      },
+    };
+
+    try {
+      const catId = '123e4567-e89b-42d3-a456-426614174000';
+      const boostRes = await revenueCatService.purchaseAmberAlertBoost(catId);
+      assert.strictEqual(boostRes.success, true);
+      assert.strictEqual(boostRes.transactionId, 'storekit2_amber_tx_001');
+      assert.strictEqual(purchasedProductId, REVENUECAT_CONFIG.PRODUCT_ID_AMBER_ALERT);
+      assert.strictEqual(assignedCatAttr, catId);
+
+      const resetStatus = await revenueCatService.cancelSubscriptionForTest();
+      assert.strictEqual(resetStatus.isActive, false);
+      assert.strictEqual(loggedOut, true);
+    } finally {
+      globalThis.Purchases = origPurchases;
+    }
+  });
 });
 
 describe('Monetization: Stripe (One-Off Emergency Amber Alerts)', () => {

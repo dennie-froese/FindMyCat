@@ -9,11 +9,13 @@ import {
   ActivityIndicator,
   Alert,
   Linking,
+  Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../theme/colors';
 import { stripeService, STRIPE_CONFIG } from '../services/stripeService';
+import { revenueCatService, REVENUECAT_CONFIG } from '../services/revenueCatService';
 import { CatProfile } from '../types';
 
 interface AmberAlertCheckoutModalProps {
@@ -31,10 +33,34 @@ export const AmberAlertCheckoutModal: React.FC<AmberAlertCheckoutModalProps> = (
 }) => {
   const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(false);
+  const isIOS = Platform.OS === 'ios';
 
-  const handleStripeAmberAlertPurchase = async () => {
+  const handleAmberAlertPurchase = async () => {
     setLoading(true);
     try {
+      // On iOS, use Apple In-App Purchase (StoreKit 2 via RevenueCat) to comply with Guideline 3.1.1
+      if (isIOS) {
+        const rcResult = await revenueCatService.purchaseAmberAlertBoost(cat.id);
+        if (rcResult.success) {
+          Alert.alert(
+            '🚨 Amber Alert Dispatched!',
+            `Your ${REVENUECAT_CONFIG.AMBER_ALERT_PRICE_DISPLAY} App Store boost is confirmed. High-intensity 2-mile emergency radar broadcast is now active for ${cat.name}.`,
+            [
+              {
+                text: 'Open Radar',
+                onPress: () => {
+                  onAlertActivated(true);
+                  onClose();
+                },
+              },
+            ]
+          );
+        } else if (rcResult.message !== 'Purchase cancelled.') {
+          Alert.alert('Purchase Error', rcResult.message);
+        }
+        return;
+      }
+
       const result = await stripeService.createAmberAlertPayment({
         catId: cat.id,
         catName: cat.name,
@@ -123,7 +149,9 @@ export const AmberAlertCheckoutModal: React.FC<AmberAlertCheckoutModalProps> = (
               <View style={styles.heroPriceRow}>
                 <View>
                   <Text style={styles.heroBoxTitle}>2-Mile Emergency Broadcast</Text>
-                  <Text style={styles.heroBoxSub}>One-off broadcast • Powered by Stripe</Text>
+                  <Text style={styles.heroBoxSub}>
+                    {isIOS ? 'One-off broadcast • Apple In-App Purchase' : 'One-off broadcast • Powered by Stripe'}
+                  </Text>
                 </View>
                 <View style={styles.pricePill}>
                   <Text style={styles.pricePillText}>{STRIPE_CONFIG.AMBER_ALERT_PRICE_DISPLAY}</Text>
@@ -163,10 +191,10 @@ export const AmberAlertCheckoutModal: React.FC<AmberAlertCheckoutModalProps> = (
               </View>
             </View>
 
-            {/* Stripe Purchase Button */}
+            {/* Amber Alert Purchase Button */}
             <TouchableOpacity
               style={styles.stripeButton}
-              onPress={handleStripeAmberAlertPurchase}
+              onPress={handleAmberAlertPurchase}
               disabled={loading}
               activeOpacity={0.85}
             >
@@ -174,7 +202,7 @@ export const AmberAlertCheckoutModal: React.FC<AmberAlertCheckoutModalProps> = (
                 <ActivityIndicator color="#ffffff" />
               ) : (
                 <>
-                  <Ionicons name="card" size={20} color="#ffffff" />
+                  <Ionicons name={isIOS ? 'flash' : 'card'} size={20} color="#ffffff" />
                   <Text style={styles.stripeButtonText}>
                     Broadcast 2-Mile Amber Alert ({STRIPE_CONFIG.AMBER_ALERT_PRICE_DISPLAY})
                   </Text>
@@ -185,7 +213,9 @@ export const AmberAlertCheckoutModal: React.FC<AmberAlertCheckoutModalProps> = (
             <View style={styles.stripeSecurityRow}>
               <Ionicons name="lock-closed" size={12} color={Colors.textMuted} />
               <Text style={styles.stripeSecurityText}>
-                Secure 256-bit encrypted checkout via Stripe • Apple Pay & Google Pay ready
+                {isIOS
+                  ? 'Secure one-off purchase via Apple StoreKit 2 • No recurring subscription'
+                  : 'Secure 256-bit encrypted checkout via Stripe • Apple Pay & Google Pay ready'}
               </Text>
             </View>
 
