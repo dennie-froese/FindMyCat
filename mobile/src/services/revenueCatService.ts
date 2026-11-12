@@ -6,6 +6,7 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { GuardianSubscriptionStatus, GuardianPerk } from '../types/index.ts';
+import { analyticsService } from './analyticsService.ts';
 
 const getPlatformOS = (): 'ios' | 'android' | 'web' => {
   try {
@@ -322,6 +323,16 @@ class RevenueCatService {
         const isActive = this.applyCustomerInfo(customerInfo, plan);
 
         await this.persistStatus();
+        if (isActive) {
+          await analyticsService.logEvent('subscription_started', {
+            plan,
+            currency: 'GBP',
+            value:
+              plan === 'annual'
+                ? REVENUECAT_CONFIG.ANNUAL_PRICE_GBP
+                : REVENUECAT_CONFIG.MONTHLY_PRICE_GBP,
+          });
+        }
         return {
           success: isActive,
           status: this.currentStatus,
@@ -358,6 +369,14 @@ class RevenueCatService {
       };
 
       await this.persistStatus();
+      await analyticsService.logEvent('subscription_started', {
+        plan,
+        currency: 'GBP',
+        value:
+          plan === 'annual'
+            ? REVENUECAT_CONFIG.ANNUAL_PRICE_GBP
+            : REVENUECAT_CONFIG.MONTHLY_PRICE_GBP,
+      });
 
       return {
         success: true,
@@ -472,6 +491,11 @@ class RevenueCatService {
             purchaseResult?.transaction?.transactionIdentifier ||
             purchaseResult?.customerInfo?.nonSubscriptionTransactions?.[0]?.transactionIdentifier ||
             `rc_amber_${Date.now()}`;
+          await analyticsService.logEvent('amber_alert_purchased', {
+            provider: 'storekit2',
+            currency: 'GBP',
+            value: REVENUECAT_CONFIG.AMBER_ALERT_PRICE_GBP,
+          });
           return {
             success: true,
             transactionId: txId,
@@ -487,6 +511,11 @@ class RevenueCatService {
         };
       }
 
+      await analyticsService.logEvent('amber_alert_purchased', {
+        provider: 'storekit2_sandbox',
+        currency: 'GBP',
+        value: REVENUECAT_CONFIG.AMBER_ALERT_PRICE_GBP,
+      });
       return {
         success: true,
         transactionId: `rc_sandbox_amber_${Date.now()}`,

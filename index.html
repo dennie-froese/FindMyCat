@@ -1101,6 +1101,24 @@
   </footer>
 
   <script>
+    // Privacy-First Firebase / Google Analytics 4 (GA4) Web Stream Configuration
+    const FIREBASE_GA_MEASUREMENT_ID = window.FMC_FIREBASE_MEASUREMENT_ID || 'G-FINDMYCAT01';
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){window.dataLayer.push(arguments);}
+    window.gtag = gtag;
+    gtag('js', new Date());
+    gtag('config', FIREBASE_GA_MEASUREMENT_ID, {
+      anonymize_ip: true,
+      allow_google_signals: false,
+      allow_ad_personalization_signals: false,
+      client_storage: 'none'
+    });
+    window.fmcTrackEvent = function(eventName, params) {
+      try {
+        gtag('event', eventName, Object.assign({ page_name: 'landing_page' }, params || {}));
+      } catch (e) {}
+    };
+
     // Supabase Configuration for Waitlist
     const SUPABASE_CONFIG = {
       url: window.FMC_SUPABASE_URL || 'https://uywhyafwqslzmkxhvrsz.supabase.co',
@@ -1185,6 +1203,12 @@
       }
 
       // Smooth transition to confirmation state
+      if (window.fmcTrackEvent) {
+        window.fmcTrackEvent('waitlist_signup_submitted', {
+          role: role || 'unspecified',
+          has_postcode: Boolean(postcode)
+        });
+      }
       if (formContent && formSuccess) {
         formContent.style.display = 'none';
         formSuccess.style.display = 'block';

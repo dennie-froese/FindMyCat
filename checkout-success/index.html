@@ -88,6 +88,12 @@
     (function () {
       const params = new URLSearchParams(window.location.search);
       const sessionId = params.get('session_id') || '';
+      window.dataLayer = window.dataLayer || [];
+      window.dataLayer.push({
+        event: 'amber_alert_checkout_completed',
+        currency: 'GBP',
+        value: 14.99
+      });
       const deepLink = 'findmycat://amber-alert-success?amber_alert=success' + (sessionId ? '&session_id=' + encodeURIComponent(sessionId) : '');
       const btn = document.getElementById('open-app-btn');
       if (btn) btn.setAttribute('href', deepLink);

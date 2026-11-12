@@ -19,6 +19,8 @@
       "bundleIdentifier": "com.findmycat.app",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
+        "GOOGLE_ANALYTICS_DEFAULT_ALLOW_AD_PERSONALIZATION_SIGNALS": false,
+        "GOOGLE_ANALYTICS_IDFV_COLLECTION_ENABLED": false,
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": false
         },

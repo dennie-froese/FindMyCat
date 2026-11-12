@@ -5,6 +5,7 @@
 
 import type { StripeAmberAlertCheckoutParams, PaymentTransactionRecord } from '../types/index.ts';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { analyticsService } from './analyticsService.ts';
 
 export const STRIPE_CONFIG = {
   // Configurable Stripe Publishable Key
@@ -59,6 +60,13 @@ class StripeService {
   }> {
     const amountPence = STRIPE_CONFIG.AMBER_ALERT_PRICE_PENCE;
     const transactionId = `txn_amber_${Date.now()}`;
+
+    await analyticsService.logEvent('amber_alert_checkout_started', {
+      provider: 'stripe',
+      currency: 'GBP',
+      value: 14.99,
+      radius_miles: params.radiusMiles || STRIPE_CONFIG.DEFAULT_BROADCAST_RADIUS_MILES,
+    });
 
     try {
       const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
@@ -128,6 +136,13 @@ class StripeService {
         };
 
         await this.recordTransaction(txn);
+        if (!isLiveCheckout) {
+          await analyticsService.logEvent('amber_alert_purchased', {
+            provider: 'stripe',
+            currency: 'GBP',
+            value: 14.99,
+          });
+        }
 
         return {
           success: true,
@@ -183,6 +198,11 @@ class StripeService {
       };
 
       await this.recordTransaction(simulatedTxn);
+      await analyticsService.logEvent('amber_alert_purchased', {
+        provider: 'stripe_sandbox',
+        currency: 'GBP',
+        value: 14.99,
+      });
 
       return {
         success: true,

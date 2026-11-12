@@ -248,7 +248,9 @@ describe('Web Automated Test Suite (Antigravity)', () => {
 
       assert.match(checkoutSuccessHtml, /2-Mile Amber Alert Processing/);
       assert.match(checkoutSuccessHtml, /findmycat:\/\/amber-alert-success\?amber_alert=success/);
+      assert.match(checkoutSuccessHtml, /amber_alert_checkout_completed/);
       assert.match(checkoutCancelledHtml, /findmycat:\/\/amber-alert-cancelled/);
+      assert.match(privacyHtml, /Google Analytics for Firebase/i);
     });
   });
 

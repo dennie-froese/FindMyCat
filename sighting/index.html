@@ -1320,6 +1320,13 @@
         }
 
         // Show Success UI
+        if (window.fmcTrackEvent) {
+          window.fmcTrackEvent('web_sighting_submitted', {
+            has_cat_id: Boolean(validCatId),
+            has_photo: Boolean(compressedPhotoBase64),
+            location_mode: locationMode
+          });
+        }
         document.getElementById('sighting-form-section').style.display = 'none';
         document.getElementById('rescuer-section').style.display = 'none';
         document.getElementById('success-location-label').textContent = approximateLocation;
@@ -1338,7 +1345,29 @@
     }
 
     // Initialize
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){window.dataLayer.push(arguments);}
+    window.gtag = gtag;
+    gtag('js', new Date());
+    gtag('config', window.FMC_FIREBASE_MEASUREMENT_ID || 'G-FINDMYCAT01', {
+      anonymize_ip: true,
+      allow_google_signals: false,
+      allow_ad_personalization_signals: false,
+      client_storage: 'none'
+    });
+    window.fmcTrackEvent = function(eventName, params) {
+      try {
+        gtag('event', eventName, Object.assign({ page_name: 'sighting_runner' }, params || {}));
+      } catch (e) {}
+    };
+
     window.addEventListener('DOMContentLoaded', () => {
+      const scannedCatId = getCatIdFromUrl();
+      if (window.fmcTrackEvent) {
+        window.fmcTrackEvent('qr_poster_scanned', {
+          has_cat_id: Boolean(scannedCatId)
+        });
+      }
       loadCatProfile();
       setupInteractions();
       detectGeolocation();

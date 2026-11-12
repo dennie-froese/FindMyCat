@@ -53,6 +53,7 @@ import { AddPetModal } from './src/components/AddPetModal';
 import { ReunitedCelebrationModal } from './src/components/ReunitedCelebrationModal';
 import { RateAppModal } from './src/components/RateAppModal';
 import { ratingService, RatingTriggerReason } from './src/services/ratingService';
+import { analyticsService } from './src/services/analyticsService';
 
 export default function App() {
   return (
@@ -92,10 +93,11 @@ function MainAppContent() {
   >(undefined);
   const [reunitedCat, setReunitedCat] = useState<CatProfile | null>(null);
 
-  // Initial Data Load & RevenueCat initialization
+  // Initial Data Load & RevenueCat + Firebase Analytics initialization
   useEffect(() => {
     async function initData() {
       try {
+        await analyticsService.initialize();
         await revenueCatService.initialize();
         const initialStatus = await revenueCatService.getSubscriptionStatus();
         setGuardianStatus(initialStatus);
@@ -113,12 +115,17 @@ function MainAppContent() {
         setSightings(loadedSightings);
         setAlerts(loadedAlerts);
         setHasOnboarded(onboarded);
+        await analyticsService.logEvent('app_initialized', {
+          onboarded: Boolean(onboarded),
+          cat_count: loadedCats.length,
+        });
 
         // Background cloud identity binding & Expo Push Token registration
         if (isCloudSyncConfigured()) {
           (async () => {
             try {
               const { userId } = await ensureAuthenticatedUser(supabase);
+              await analyticsService.setUserId(userId);
               await revenueCatService.identifyUser(userId);
               const refreshedStatus = await revenueCatService.getSubscriptionStatus();
               setGuardianStatus(refreshedStatus);
@@ -141,6 +148,25 @@ function MainAppContent() {
     }
     initData();
   }, []);
+
+  // Track user screen journeys across Onboarding and Main Navigation Tabs
+  useEffect(() => {
+    if (loading || hasOnboarded === null) return;
+    if (!hasOnboarded) {
+      analyticsService.logScreenView('Onboarding', 'OnboardingScreen').catch(() => {});
+      return;
+    }
+    const screenMap: Record<MainTab, { name: string; className: string }> = {
+      feed: { name: 'NeighbourhoodRadar', className: 'SightingsFeedScreen' },
+      report: { name: 'QuickReportSighting', className: 'QuickReportScreen' },
+      passport: { name: 'PetPassport', className: 'PetPassportScreen' },
+      poster: { name: 'LostPosterPreview', className: 'PosterPreviewScreen' },
+    };
+    const target = screenMap[activeTab];
+    if (target) {
+      analyticsService.logScreenView(target.name, target.className).catch(() => {});
+    }
+  }, [loading, hasOnboarded, activeTab]);
 
 
   const syncRemoteAmberAlertState = useCallback(async () => {
@@ -219,6 +245,10 @@ function MainAppContent() {
     const updated = await saveNewSighting(newReport);
     setSightings(updated);
     setActiveTab('feed');
+    await analyticsService.logEvent('sighting_submitted', {
+      has_photo: Boolean(newReport.photoUri),
+      is_anonymous: true,
+    });
     Alert.alert(
       '🎉 Sighting Broadcasted!',
       'Thank you! Your anonymous sighting has been logged with the 200m Privacy Shield and added to the neighbourhood radar.',
@@ -257,10 +287,16 @@ function MainAppContent() {
       }
       setSelectedCatId(updatedCat.id);
       if (previousCat?.status !== 'missing') {
+        await analyticsService.logEvent('missing_mode_triggered', {
+          cat_id: updatedCat.id,
+        });
         setActiveTab('poster');
       }
     } else if (previousCat && previousCat.status === 'missing' && updatedCat.status === 'safe') {
       // Reunited journey: stand down alerts and trigger celebration modal
+      await analyticsService.logEvent('cat_reunited', {
+        cat_id: updatedCat.id,
+      });
       const updatedAlerts = await standDownCatAlerts(updatedCat.name, updatedCat.id);
       if (updatedAlerts.length > 0) {
         setAlerts(updatedAlerts);
@@ -273,6 +309,11 @@ function MainAppContent() {
     const updatedCats = await addCatProfile(newCat);
     setCats(updatedCats);
     setSelectedCatId(newCat.id);
+    await analyticsService.logEvent('cat_passport_created', {
+      cat_id: newCat.id,
+      has_microchip: Boolean(newCat.microchipNumber),
+      total_cats: updatedCats.length,
+    });
 
     if (isCloudSyncConfigured()) {
       (async () => {
@@ -299,6 +340,9 @@ function MainAppContent() {
     }
     const updatedCats = await deleteCatProfile(catId);
     setCats(updatedCats);
+    await analyticsService.logEvent('cat_passport_deleted', {
+      remaining_cats: updatedCats.length,
+    });
     if (selectedCatId === catId) {
       setSelectedCatId(updatedCats.length > 0 ? updatedCats[0].id : '');
     }
@@ -317,6 +361,8 @@ function MainAppContent() {
         : true;
 
       await clearAllLocalVaultData();
+      await analyticsService.logEvent('account_erased', { remote_erased: remoteErased });
+      await analyticsService.resetAnalyticsData();
       const resetStatus = await revenueCatService.cancelSubscriptionForTest();
       setGuardianStatus(resetStatus);
       setCats([]);
@@ -350,6 +396,11 @@ function MainAppContent() {
   }) => {
     await setOnboardingCompleted();
     setHasOnboarded(true);
+    await analyticsService.setUserProperty('user_role', role);
+    await analyticsService.logEvent('onboarding_completed', {
+      role,
+      has_cat_profile: Boolean(createdCat),
+    });
 
     if (createdCat) {
       const updatedCats = await addCatProfile(createdCat);
@@ -501,7 +552,10 @@ function MainAppContent() {
                 onUpdateCat={handleUpdateCat}
                 onDeleteCat={handleDeleteCat}
                 onGeneratePoster={() => setActiveTab('poster')}
-                onOpenPaywall={() => setPaywallVisible(true)}
+                onOpenPaywall={() => {
+                  analyticsService.logEvent('paywall_viewed', { source: 'pet_passport' }).catch(() => {});
+                  setPaywallVisible(true);
+                }}
                 onOpenRateApp={() => {
                   setRatingTriggerReason('manual');
                   setRateModalPetName(activeCat?.name);
@@ -539,6 +593,10 @@ function MainAppContent() {
                 onUpdateCat={handleUpdateCat}
                 onDeleteCat={handleDeleteCat}
                 onPosterExported={async () => {
+                  await analyticsService.logEvent('poster_generated', {
+                    cat_id: activeCat.id,
+                    reward_offered: Boolean(activeCat.posterRewardOffered),
+                  });
                   const check = await ratingService.recordSignificantEvent('poster_generated');
                   if (check.shouldPrompt) {
                     setRatingTriggerReason('poster_generated');
